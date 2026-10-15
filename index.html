@@ -337,8 +337,17 @@
     .date-picker-cell.future { opacity: 0.3; pointer-events: none; }
     /* 时间流：按发生顺序排列的行列表，行高由内容决定，不做等比例时间分布 */
     .tl-body { display: flex; flex-direction: column; gap: 6px; }
-    .tf-row { display: flex; gap: 8px; align-items: stretch; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-    .tf-time { width: 46px; flex-shrink: 0; font-size: 11px; font-weight: 600; color: #8e8e93; text-align: right; padding-top: 11px; line-height: 1.35; }
+    .tf-row { display: flex; gap: 8px; align-items: stretch; cursor: pointer; -webkit-tap-highlight-color: transparent; position: relative; }
+    /* 任务行的纵向时间轴连线：与卡片同高（顶部对齐开始时间、底部对齐结束时间），颜色 = 分类色 */
+    .tf-task::after, .tf-active::after {
+      content: ''; position: absolute; left: 48.5px; top: 0; bottom: 0;
+      width: 3px; border-radius: 2px;
+      background: var(--tl-cat, #e5e5ea);
+    }
+    .tf-active::after { background: #ff3b30; }
+    .tf-time { width: 46px; flex-shrink: 0; font-size: 11px; font-weight: 600; color: #8e8e93; text-align: right; padding: 6px 0; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    /* 结束时间：绝对定位钉在行底（不依赖 flex 拉伸，iOS 嵌套 flex 的 stretch 有兼容性问题） */
+    .tf-t-end { position: absolute; left: 0; bottom: 6px; width: 46px; text-align: right; }
     .tf-card { flex: 1; min-height: 44px; box-sizing: border-box; border-radius: 14px; padding: 9px 12px; color: rgba(60,60,67,0.92); box-shadow: 0 2px 6px rgba(86,72,55,0.06); }
     .tf-row:active .tf-card { opacity: 0.88; }
     .tf-title { font-size: 14px; font-weight: 600; line-height: 1.35; word-break: break-word; }
@@ -1451,7 +1460,7 @@ function migrateLegacyData() {
           <span style="font-size:15px;color:#1c1c1e">计时胶囊</span>
           <label class="toggle" style="margin:0"><input type="checkbox" id="pref-capsule-toggle" onchange="toggleTimerCapsule(this.checked)"><span class="toggle-track"></span></label>
         </div>
-        <p class="info-tip" style="margin-top:8px;padding:0">屏幕右上角悬浮的进行中任务计时。关闭后，进行中的时长会直接显示在记录页时间流的红色任务行上；结束任务可从右下角 ■ 按钮或点任务行打开弹窗。</p>
+        <p class="info-tip" style="margin-top:8px;padding:0">屏幕右上角悬浮的进行中任务计时（新用户默认关，老用户默认开，可在此随时切换）。关闭后，进行中的时长会直接显示在记录页时间流的红色任务行上；结束任务可从右下角 ■ 按钮或点任务行打开弹窗。</p>
       </div>
     </div>
     <div class="section">
@@ -3416,14 +3425,15 @@ function setTimelineDate(dateStr) {
   _timelineDate = dateStr
   _timelineWeekStart = null // 下次按新的选中日期重新计算所在周
   _tlScrollPending = true
-  renderTimeline()
+  // 渲染异常时给出可见提示而不是静默卡死（数据异常排查用）
+  try { renderTimeline() } catch (e) { toast('时间流渲染出错：' + e.message) }
 }
 
 function goTimelineToday() {
   _timelineDate = fmtDateOnly(new Date())
   _timelineWeekStart = null
   _tlScrollPending = true
-  renderTimeline()
+  try { renderTimeline() } catch (e) { toast('时间流渲染出错：' + e.message) }
 }
 
 // 快捷日期胶囊：daysAgo=0 今天 / 1 昨天；更早日期走「自定义」月历弹窗
@@ -3442,8 +3452,9 @@ function selectTimelineDate(dateStr, el) {
     el.classList.add('selected')
   }
   setTimeout(() => {
-    setTimelineDate(dateStr)
+    // 先关弹窗再切日期：渲染若异常也不会出现「弹窗卡住、全页点不动」
     closeDatePickerModal()
+    setTimelineDate(dateStr)
   }, 150)
 }
 
@@ -3569,13 +3580,13 @@ function computeBackfillSlot(segs, clickMs, nowMs) {
     if (endMs - startMs < MIN_GAP) return null
   }
   if (endMs <= startMs) return null
-  // 夜间大空白（≥3 小时且开始 ≥21 点或结束 ≤8 点）预填「睡觉」
-  let title = ''
+  // 夜间大空白（≥3 小时且开始 ≥21 点或结束 ≤8 点）预填「睡眠」，分类同步预填「睡眠」
+  let title = '', category = ''
   const dur = endMs - startMs
   const sh = new Date(startMs).getHours()
   const eh = new Date(endMs).getHours() + new Date(endMs).getMinutes() / 60
-  if (dur >= 3 * 3600000 && (sh >= 21 || eh <= 8)) title = '睡觉'
-  return { startMs, endMs, title }
+  if (dur >= 3 * 3600000 && (sh >= 21 || eh <= 8)) { title = '睡眠'; category = '睡眠' }
+  return { startMs, endMs, title, category }
 }
 
 function hexToRgba(hex, alpha) {
@@ -3631,8 +3642,10 @@ function renderTimeline() {
       // 跨天任务（不限睡眠）：两天都保留行，时长按整段显示（不随当天裁剪截断），并加「跨天」角标
       const xday = fmtDateOnly(new Date(s.task.start)) !== fmtDateOnly(new Date(s.task.end))
       const durText = xday ? fmtDuration(s.task.start, s.task.end) : fmtDuration(s.start, s.end)
-      html += `<div class="tf-row" onclick="openDoneDetail('${s.task.task_id}')">`
-        + `<div class="tf-time">${fmtTime(s.start)}</div>`
+      // 时间列：开始时间对齐卡片顶部、结束时间对齐卡片底部（跨天第一段裁剪到 24:00 时明示 24:00）
+      const endLabel = (xday && s.end >= dayEnd) ? '24:00' : fmtTime(s.end)
+      html += `<div class="tf-row tf-task" style="--tl-cat:${getCatColor(s.task.category)}" onclick="openDoneDetail('${s.task.task_id}')">`
+        + `<div class="tf-time"><span>${fmtTime(s.start)}</span><span class="tf-t-end">${endLabel}</span></div>`
         + `<div class="tf-card" style="background-color:${color}">`
         + `<div class="tf-title">${escHtml(s.task.title)}${xday ? '<span class="tf-xday-badge">跨天</span>' : ''}<span class="tf-dur">${durText}</span></div>`
         + (s.task.notes ? `<div class="tf-notes">${escHtml(s.task.notes)}</div>` : '')
@@ -3640,14 +3653,15 @@ function renderTimeline() {
     } else if (r.type === 'active') {
       const d = new Date(r.task.startedAt)
       const timeLabel = r.startedBefore ? `${d.getMonth() + 1}/${d.getDate()}<br>${fmtTime(d)}` : fmtTime(d)
-      html += `<div class="tf-row" onclick="openActiveTaskModal()">`
-        + `<div class="tf-time">${timeLabel}</div>`
+      html += `<div class="tf-row tf-active" onclick="openActiveTaskModal()">`
+        + `<div class="tf-time"><span>${timeLabel}</span></div>`
         + `<div class="tf-card tf-active-card">`
         + `<div class="tf-title"><span class="tf-active-badge">进行中</span>${escHtml(r.task.title || '未命名任务')}<span class="tf-active-dur" id="tf-dur-${r.task.id}">${fmtTick(Date.now() - new Date(r.task.startedAt).getTime())}</span></div>`
         + `</div></div>`
     } else {
+      // 空隙行不显示起止时间：相邻任务卡片的底部/顶部已经标出同样两个时刻，重复了
       html += `<div class="tf-row" onclick="onGapRowClick(${r.startMs}, ${r.endMs})">`
-        + `<div class="tf-time">${fmtTime(r.startMs)}</div>`
+        + `<div class="tf-time"></div>`
         + `<div class="tf-gap-card">＋ 空隙 ${fmtDuration(r.startMs, r.endMs)} · 点击补录</div>`
         + `</div>`
     }
@@ -3661,18 +3675,15 @@ function renderTimeline() {
     html += `<div class="tf-row tf-anchor" onclick="${act}"><div class="tf-time"></div>`
       + `<div class="tf-gap-card" style="min-height:64px"><span class="tl-empty-text">${hint}</span></div></div>`
   } else if (dateStr === today) {
-    // 时间点 = 上一个已完成任务的结束时刻（取当天各段最晚 end，防跨天段排序干扰）；
-    // 有进行中任务时留空——它还没结束，显示更早的时刻会让时间列回溯
-    const hasActive = rows.some(r => r.type === 'active')
-    const lastEnd = (!hasActive && segs.length) ? Math.max(...segs.map(s => s.end)) : null
-    html += `<div class="tf-row tf-anchor" onclick="openRecordModal('start')"><div class="tf-time">${lastEnd ? fmtTime(lastEnd) : ''}</div>`
+    // 时间列留空：最后一个任务的结束时刻已显示在它自己行的底部
+    html += `<div class="tf-row tf-anchor" onclick="openRecordModal('start')"><div class="tf-time"></div>`
       + `<div class="tf-gap-card tf-start-card">⏺ 开始记录</div></div>`
   } else {
     // 跨天任务的当天段被裁剪到 24:00：任务延续到明天，不显示「之后无记录」补录行（否则时间列固定显示 00:00）
     const lastSeg = segs[segs.length - 1]
     const continuesNextDay = new Date(lastSeg.task.end).getTime() > dayEnd
     if (!continuesNextDay) {
-      html += `<div class="tf-row" onclick="openAfterDayBackfill('${dateStr}')"><div class="tf-time">${fmtTime(segs[segs.length - 1].end)}</div>`
+      html += `<div class="tf-row" onclick="openAfterDayBackfill('${dateStr}')"><div class="tf-time"></div>`
         + `<div class="tf-gap-card">＋ 之后无记录 · 点击补录</div></div>`
     }
   }
@@ -3730,17 +3741,54 @@ function fabStopTask() {
 }
 
 function scrollTimelineToCurrent(behavior = 'smooth') {
-  // 只有「今天」需要定位（底部记录入口）；历史日期列表短，从顶部看起即可
+  // 只有「今天」需要定位；历史日期从顶部看起
+  const body = document.getElementById('tl-body')
+  const card = body?.parentElement
+  if (card) card.style.paddingBottom = ''
   if (getTimelineDate() !== fmtDateOnly(new Date())) return
-  const anchor = document.querySelector('#tl-body .tf-anchor')
-  if (!anchor) return
-  const r = anchor.getBoundingClientRect()
-  if (r.top >= 0 && r.top <= window.innerHeight) return // 已在一屏内就不滚
-  anchor.scrollIntoView({ block: 'center', behavior })
+  if (!body) return
+  const topBarH = document.getElementById('tool-bar')?.getBoundingClientRect().height || 52
+
+  const isTaskRow = el => el && el.classList.contains('tf-row') && el.querySelector('.tf-card') && !el.querySelector('.tf-gap-card')
+
+  // 有进行中任务：上一条任务行置顶（进行中行成为第二条），视图带上下文。
+  // 进行中在底部时下方内容不够滚，按需给容器补底部留白
+  const activeRow = body.querySelector('.tf-active-card')?.closest('.tf-row')
+  if (activeRow) {
+    let target = activeRow
+    let el = activeRow.previousElementSibling
+    while (el) {
+      if (isTaskRow(el) && !el.querySelector('.tf-active-card')) { target = el; break }
+      if (!el.classList.contains('tf-row')) break
+      el = el.previousElementSibling
+    }
+    const need = target.getBoundingClientRect().top + window.scrollY - topBarH - 8
+    const docH = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)
+    const shortfall = need - (docH - window.innerHeight)
+    // 容器自带 8px 内边距，paddingBottom 是覆盖值不是增量，要补上
+    const basePad = card ? parseFloat(getComputedStyle(card).paddingBottom) || 0 : 0
+    if (shortfall > 0 && card) card.style.paddingBottom = (basePad + shortfall) + 'px'
+    let y = Math.max(need, 0)
+    window.scrollTo({ top: y, behavior })
+    // 矫正一次：高度计算误差导致没到位（已滚到底）时，补差额留白再滚
+    const off = Math.round(target.getBoundingClientRect().top - topBarH - 8)
+    if (off > 2 && card) {
+      card.style.paddingBottom = (basePad + shortfall + off) + 'px'
+      window.scrollTo({ top: y + off, behavior })
+    }
+    return
+  }
+
+  // 无进行中任务：最后一个任务行贴底，一屏内尽量多看历史
+  let lastTask = null
+  body.querySelectorAll('.tf-row').forEach(r => { if (isTaskRow(r) && !r.querySelector('.tf-active-card')) lastTask = r })
+  if (!lastTask) return  // 空天内容短，不需要定位
+  const y = lastTask.getBoundingClientRect().bottom + window.scrollY - window.innerHeight + 16
+  window.scrollTo({ top: Math.max(y, 0), behavior })
 }
 
 // 空隙行点击 = 在空隙起点处的一次"虚拟点击"，补录预填逻辑复用 computeBackfillSlot
-// 例外：首任务前的夜间大空隙（≥3 小时且结束不晚于 8 点）直接预填整段并推荐「睡觉」——
+// 例外：首任务前的夜间大空隙（≥3 小时且结束不晚于 8 点）直接预填整段并推荐「睡眠」（分类同步预填）——
 // 旧时间轴在首任务前只按点击位置预填 30 分钟，点一个 7 小时的夜间空隙行给 30 分钟不合直觉
 // 跨天补录：首任务前的空隙起点回溯到前一天最后一个任务的结束时刻（限 24h 内），
 // 「昨晚→今早」的睡眠/夜班一次选中整段，而不是从当天 0 点截断
@@ -3761,15 +3809,16 @@ function onGapRowClick(gapStartMs, gapEndMs) {
     }
     const canExtend = prevEnd != null && prevEnd > dayStart - 86400000  // 只回溯到前一天，防止多天没记录时一把拉太远
     if (gapEndMs - gapStartMs >= 3 * 3600000 && new Date(gapEndMs).getHours() <= 8) {
-      // 夜间大空隙：整段预填并推荐「睡觉」
+      // 夜间大空隙：整段预填并推荐「睡眠」
       slot.startMs = canExtend ? prevEnd : gapStartMs
       slot.endMs = gapEndMs
-      slot.title = '睡觉'
+      slot.title = '睡眠'
+      slot.category = '睡眠'
     } else if (canExtend) {
       slot.startMs = prevEnd
     }
   }
-  openRecordModal('backfill', { prefillStart: slot.startMs, prefillEnd: slot.endMs, title: slot.title })
+  openRecordModal('backfill', { prefillStart: slot.startMs, prefillEnd: slot.endMs, title: slot.title, category: slot.category })
 }
 
 // 历史日期「之后无记录」/ 空天占位：直接开补录弹窗，起止自动取前后两个日程的边界——
@@ -3799,12 +3848,12 @@ function openAfterDayBackfill(dateStr) {
   const nextSegs = getDaySegments(tasks, dayEnd, dayEnd + 86400000)
   let endMs = nextSegs.length ? Math.min(...nextSegs.map(s => s.start)) : startMs + 30 * 60000
   if (endMs <= startMs) endMs = startMs + 30 * 60000
-  // 夜间大空白推荐「睡觉」（口径同 computeBackfillSlot）
-  let title = ''
+  // 夜间大空白推荐「睡眠」（口径同 computeBackfillSlot，分类同步预填）
+  let title = '', category = ''
   const sh = new Date(startMs).getHours()
   const eh = new Date(endMs).getHours() + new Date(endMs).getMinutes() / 60
-  if (endMs - startMs >= 3 * 3600000 && (sh >= 21 || eh <= 8)) title = '睡觉'
-  openRecordModal('backfill', { prefillStart: startMs, prefillEnd: endMs, title })
+  if (endMs - startMs >= 3 * 3600000 && (sh >= 21 || eh <= 8)) { title = '睡眠'; category = '睡眠' }
+  openRecordModal('backfill', { prefillStart: startMs, prefillEnd: endMs, title, category })
 }
 
 // ══════════════════════════════════════════════════════════
@@ -3909,7 +3958,16 @@ function updateTimer() {
 }
 
 // 设置页「显示 → 计时胶囊」开关：关闭后胶囊不再出现（时间流进行中行内有实时时长兜底）
-function isTimerCapsuleHidden() { return !!loadSettings().hideTimerCapsule }
+// 首次读取时定型并持久化：当时有历史记录（老用户）默认开，无记录（新用户）默认关；
+// 定型后固定不变，用户手动开关以手动为准
+function isTimerCapsuleHidden() {
+  const s = loadSettings()
+  if (s.hideTimerCapsule !== undefined) return !!s.hideTimerCapsule
+  const def = loadDoneTasks().length === 0
+  s.hideTimerCapsule = def
+  try { localStorage.setItem('app_settings', JSON.stringify(s)) } catch {}
+  return def
+}
 function toggleTimerCapsule(show) {
   let cur = {}
   try { cur = JSON.parse(localStorage.getItem('app_settings') || '{}') } catch {}
@@ -7078,7 +7136,7 @@ else renderRecord()
       <button class="modal-close" onclick="closeDatePickerModal()">×</button>
     </div>
     <div id="date-picker-body"></div>
-    <button class="btn-primary" onclick="goTimelineToday();closeDatePickerModal()" style="width:100%;margin-top:12px">↩ 回今天</button>
+    <button class="btn-primary" onclick="closeDatePickerModal();goTimelineToday()" style="width:100%;margin-top:12px">↩ 回今天</button>
   </div>
 </div>
 
