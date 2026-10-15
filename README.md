@@ -30,11 +30,19 @@
 
 ## 自行部署
 
-纯静态、零依赖、零构建，整个应用就是一个 `index.html`：
+纯静态、零依赖、零构建，整个应用就是一个 `index.html`。
 
-1. 下载本仓库全部文件
-2. 上传到任意静态托管服务（推荐 Cloudflare Pages；`_worker.js` 用于 SPA 路由兜底，其他托管平台可忽略）
-3. 配置域名即可访问
+**下载**：点本页右上方绿色「Code」按钮 →「Download ZIP」，解压即得全部文件（无需逐个下载）；熟悉 git 的话也可以 `git clone`。
+
+**部署**（任选其一）：
+
+| 方式 | 步骤 |
+|------|------|
+| GitHub Pages（零下载） | Fork 本仓库 → 仓库 Settings → Pages → Source 选 `main` 分支，几分钟后访问 `你的用户名.github.io/time-tracking` |
+| Cloudflare Pages | Pages 控制台直接拖拽上传解压后的文件夹，配域名即可（`_worker.js` 用于 SPA 路由兜底） |
+| 其他静态托管 | 上传 `index.html` 和两个 `pwa-icon` 图标即可，`_worker.js` 可忽略 |
+
+也可以不部署：解压后直接双击 `index.html` 就能在浏览器里用（数据保存在浏览器本地）。
 
 ## 技术说明
 
