@@ -357,7 +357,6 @@
     /* 空隙行：虚线卡片，最小行高 44px 保证触控 */
     .tf-gap-card { flex: 1; min-height: 44px; box-sizing: border-box; display: flex; align-items: center; justify-content: center; border: 1.5px dashed #d8d8de; border-radius: 14px; background: rgba(242,242,247,0.5); color: #aeaeb2; font-size: 13px; font-weight: 500; }
     .tf-row:active .tf-gap-card { background: #f2f2f7; }
-    .tf-start-card { border-color: #9AB88F; color: #5E7E54; background: rgba(154,184,143,0.08); }
     /* 进行中任务行：红色脉冲 */
     .tf-active-card { border: 1.5px solid rgba(255,59,48,0.4); background: rgba(255,59,48,0.06); animation: tfPulse 2s ease-in-out infinite; }
     @keyframes tfPulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(255,59,48,0.22); } 50% { box-shadow: 0 0 0 5px rgba(255,59,48,0.06); } }
@@ -3667,18 +3666,15 @@ function renderTimeline() {
     }
   }
 
-  // 末尾入口 / 空日期占位：今天开「记录任务」计时弹窗；历史日期直接开补录弹窗（自动取前后日程边界）
+  // 空日期占位：今天开「记录任务」计时弹窗；历史日期直接开补录弹窗（自动取前后日程边界）
+  // 注意：今天有记录时不再有底部「⏺ 开始记录」锚点行（v1.43.1 起删除，开始入口统一为右下悬浮 ＋）
   if (!flow.length) {
     const isToday = dateStr === today
     const hint = isToday ? '点击记录今天的第一件事' : '这一天没有记录 · 点击补录'
     const act = isToday ? "openRecordModal('start')" : `openAfterDayBackfill('${dateStr}')`
     html += `<div class="tf-row tf-anchor" onclick="${act}"><div class="tf-time"></div>`
       + `<div class="tf-gap-card" style="min-height:64px"><span class="tl-empty-text">${hint}</span></div></div>`
-  } else if (dateStr === today) {
-    // 时间列留空：最后一个任务的结束时刻已显示在它自己行的底部
-    html += `<div class="tf-row tf-anchor" onclick="openRecordModal('start')"><div class="tf-time"></div>`
-      + `<div class="tf-gap-card tf-start-card">⏺ 开始记录</div></div>`
-  } else {
+  } else if (dateStr !== today) {
     // 跨天任务的当天段被裁剪到 24:00：任务延续到明天，不显示「之后无记录」补录行（否则时间列固定显示 00:00）
     const lastSeg = segs[segs.length - 1]
     const continuesNextDay = new Date(lastSeg.task.end).getTime() > dayEnd
@@ -3690,7 +3686,7 @@ function renderTimeline() {
 
   document.getElementById('tl-body').innerHTML = html
 
-  // 时间流随页面整体滚动；切 Tab / 换日后「今天」视图滚动到底部记录入口
+  // 时间流随页面整体滚动；切 Tab / 换日后「今天」视图定位到进行中任务/最后一条记录
   if (_tlScrollPending) {
     _tlScrollPending = false
     scrollTimelineToCurrent('auto')
