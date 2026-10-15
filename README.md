@@ -11,7 +11,7 @@
 
 ### 📝 时间流记录
 
-<img src="screenshots/record.jpg" width="230" alt="记录任务弹窗：习惯打卡点了就开记，历史任务免输入">
+<img src="screenshots/record.jpg" width="230" alt="记录任务弹窗：习惯打卡点了就开记，历史任务免输入"> <img src="screenshots/timeline-photo.jpg" width="230" alt="任务按时间逐行排列，同步到苹果日历后的实际效果">
 
 任务按发生顺序逐行排列，标题、时长、备注完整显示；点开始就计时，点空隙行补录空白时段；右下角悬浮按钮随时开始（＋）/ 结束（■）；跨天任务自动拆分、两侧日期都可见；结束自动同步苹果日历（Pro）。
 
