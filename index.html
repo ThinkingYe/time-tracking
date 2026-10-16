@@ -338,13 +338,6 @@
     /* 时间流：按发生顺序排列的行列表，行高由内容决定，不做等比例时间分布 */
     .tl-body { display: flex; flex-direction: column; gap: 6px; }
     .tf-row { display: flex; gap: 8px; align-items: stretch; cursor: pointer; -webkit-tap-highlight-color: transparent; position: relative; }
-    /* 任务行的纵向时间轴连线：与卡片同高（顶部对齐开始时间、底部对齐结束时间），颜色 = 分类色 */
-    .tf-task::after, .tf-active::after {
-      content: ''; position: absolute; left: 48.5px; top: 0; bottom: 0;
-      width: 3px; border-radius: 2px;
-      background: var(--tl-cat, #e5e5ea);
-    }
-    .tf-active::after { background: #ff3b30; }
     .tf-time { width: 46px; flex-shrink: 0; font-size: 11px; font-weight: 600; color: #8e8e93; text-align: right; padding: 6px 0; line-height: 1.35; white-space: nowrap; font-variant-numeric: tabular-nums; }
     /* 结束时间：绝对定位钉在行底（不依赖 flex 拉伸，iOS 嵌套 flex 的 stretch 有兼容性问题） */
     .tf-t-end { position: absolute; left: 0; bottom: 6px; width: 46px; text-align: right; }
@@ -352,6 +345,9 @@
     .tf-row:active .tf-card { opacity: 0.88; }
     .tf-title { font-size: 14px; font-weight: 600; line-height: 1.35; word-break: break-word; }
     .tf-dur { font-size: 12px; font-weight: 500; opacity: 0.75; margin-left: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    /* 时长横条：宽度 = 时长 ÷ 8 小时（绝对刻度），颜色 = 分类色加深 28%（renderTimeline 内联 --tl-bar） */
+    .tf-dur-track { height: 6px; border-radius: 3px; background: rgba(0,0,0,0.07); margin-top: 6px; overflow: hidden; }
+    .tf-dur-bar { height: 100%; border-radius: 3px; background: var(--tl-bar, #aeaeb2); }
     .tf-xday-badge { display: inline-block; background: rgba(255,255,255,0.55); font-size: 10px; font-weight: 700; border-radius: 8px; padding: 1px 6px; margin-left: 6px; vertical-align: 1px; white-space: nowrap; }
     .tf-notes { font-size: 12px; line-height: 1.45; opacity: 0.85; margin-top: 3px; white-space: pre-wrap; word-break: break-word; }
     /* 空隙行：虚线卡片，最小行高 44px 保证触控 */
@@ -3630,6 +3626,14 @@ function hexToRgba(hex, alpha) {
   return `rgba(${parseInt(m[1],16)},${parseInt(m[2],16)},${parseInt(m[3],16)},${alpha})`
 }
 
+// 分类色加深（factor=0.72 ≈ 加深 28%）：时间流时长横条用，浅色分类的横条在淡色卡片上才看得清
+function darkenHex(hex, factor) {
+  const m = (hex || '').replace('#','').match(/^(..)(..)(..)$/)
+  if (!m) return hex
+  const c = i => Math.round(parseInt(m[i], 16) * factor)
+  return `#${[c(1), c(2), c(3)].map(v => v.toString(16).padStart(2, '0')).join('')}`
+}
+
 function renderTimeline() {
   const dateStr = getTimelineDate()
   const today = fmtDateOnly(new Date())
@@ -3673,16 +3677,21 @@ function renderTimeline() {
   for (const r of flow) {
     if (r.type === 'task') {
       const s = r.seg
-      const color = hexToRgba(getCatColor(s.task.category), 0.82)
+      const catColor = getCatColor(s.task.category)
+      const color = hexToRgba(catColor, 0.35)
       // 跨天任务（不限睡眠）：两天都保留行，时长按整段显示（不随当天裁剪截断），并加「跨天」角标
       const xday = fmtDateOnly(new Date(s.task.start)) !== fmtDateOnly(new Date(s.task.end))
-      const durText = xday ? fmtDuration(s.task.start, s.task.end) : fmtDuration(s.start, s.end)
+      const durMs = xday ? (s.task.end - s.task.start) : (s.end - s.start)
+      const durText = fmtDuration(xday ? s.task.start : s.start, xday ? s.task.end : s.end)
       // 时间列：开始时间对齐卡片顶部、结束时间对齐卡片底部（跨天第一段裁剪到 24:00 时明示 24:00）
       const endLabel = (xday && s.end >= dayEnd) ? '24:00' : fmtTime(s.end)
-      html += `<div class="tf-row tf-task" style="--tl-cat:${getCatColor(s.task.category)}" onclick="openDoneDetail('${s.task.task_id}')">`
+      // 时长横条：绝对刻度，满宽 = 8 小时
+      const barPct = Math.min(100, durMs / (8 * 3600000) * 100).toFixed(1)
+      html += `<div class="tf-row tf-task" onclick="openDoneDetail('${s.task.task_id}')">`
         + `<div class="tf-time"><span>${fmtTime(s.start)}</span><span class="tf-t-end">${endLabel}</span></div>`
-        + `<div class="tf-card" style="background-color:${color}">`
+        + `<div class="tf-card" style="background-color:${color};--tl-bar:${darkenHex(catColor, 0.72)}">`
         + `<div class="tf-title">${escHtml(s.task.title)}${xday ? '<span class="tf-xday-badge">跨天</span>' : ''}<span class="tf-dur">${durText}</span></div>`
+        + `<div class="tf-dur-track"><div class="tf-dur-bar" style="width:${barPct}%"></div></div>`
         + (s.task.notes ? `<div class="tf-notes">${escHtml(s.task.notes)}</div>` : '')
         + `</div></div>`
     } else if (r.type === 'active') {
