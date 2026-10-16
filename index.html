@@ -4435,12 +4435,9 @@ function buildPickerData() {
     const ms = new Date(t.start).getTime() || 0
     ;(byCat[cat] = byCat[cat] || []).push({ title, ms })
   })
-  const preset = loadUserCalendars()
-  const lastOf = cat => (byCat[cat] || []).reduce((m, e) => Math.max(m, e.ms), 0)
-  // 分类胶囊 = 全部用户日历分类（无历史任务的也要能选，输入框已移除，这是唯一的分类入口）
-  // + 有历史任务但不在日历里的分类（按最近活跃度），「未分类」固定垫底
-  const extra = Object.keys(byCat).filter(c => c !== '未分类' && !preset.includes(c)).sort((a, b) => lastOf(b) - lastOf(a))
-  const cats = [...preset, ...extra]
+  // 分类胶囊 = 设置页「时间分类」列表（不从历史记录里捞分类，避免导入脏数据混入）；
+  // 「未分类」是系统桶（无分类的历史任务归这里），固定垫底
+  const cats = [...loadUserCalendars()]
   if (byCat['未分类']) cats.push('未分类')
   _pickerData = cats.map(cat => {
     // 按开始时间从近到远遍历，第一个出现的写法即代表名（最近一次使用的写法）
