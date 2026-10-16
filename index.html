@@ -559,6 +559,42 @@
     .form-chip-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
     .hist-chip-del { background: none; border: none; color: #aeaeb2; font-size: 15px; line-height: 1; padding: 4px 2px 4px 8px; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
     .hist-chip-del:active { color: #ff3b30; }
+
+    /* ── 记录弹窗：任务点选选择器（分类胶囊行 + 任务 chips 网格）── */
+    .pk-cats { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+    .pk-cat { color: #1c1c1e; border: none; border-radius: 14px; padding: 6px 12px; font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .pk-panel { border: 1.5px solid #e5e5ea; border-radius: 12px; padding: 8px; background: #fafafc; margin-bottom: 8px; }
+    .pk-panel input[type="text"] { margin-bottom: 8px; background: #fff; }
+    .pk-tasks { display: flex; flex-wrap: wrap; gap: 6px; max-height: 118px; overflow-y: auto; -webkit-overflow-scrolling: touch; align-content: flex-start; }
+    .pk-task { background: #f2f2f7; color: #1c1c1e; border: none; border-radius: 14px; padding: 7px 12px; font-size: 14px; font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .pk-task:active { background: #e5e5ea; }
+    .pk-task.sel { background: #e3efff; color: #007aff; font-weight: 600; box-shadow: inset 0 0 0 1.5px #007aff; }
+    .pk-task.sel .pk-x { margin-left: 6px; opacity: 0.55; font-weight: 400; }
+    .pk-empty { font-size: 12px; color: #aeaeb2; padding: 6px 2px; }
+
+    /* ── 记录弹窗：紧凑时间行（开始→结束一行的胶囊 + 快捷微调）── */
+    .t-row { display: flex; align-items: center; gap: 6px; margin: 2px 0 8px; }
+    .t-cap { background: #f2f2f7; border: none; border-radius: 10px; padding: 8px 10px; font-size: 13px; font-weight: 600; color: #1c1c1e; font-family: inherit; cursor: pointer; font-variant-numeric: tabular-nums; white-space: nowrap; -webkit-tap-highlight-color: transparent; box-shadow: inset 0 0 0 1.5px transparent; }
+    .t-cap .t-dow { color: #8e8e93; font-weight: 400; }
+    .t-cap.sel-s { background: #e3efff; color: #007aff; box-shadow: inset 0 0 0 1.5px #007aff; }
+    .t-cap.sel-s .t-dow { color: #7aa8e8; }
+    .t-cap.sel-e { background: #e8f9ec; color: #248a3d; box-shadow: inset 0 0 0 1.5px #34c759; }
+    .t-cap.sel-e .t-dow { color: #7dc493; }
+    .t-cap.t-now { background: #34c759; color: #fff; }
+    .t-cap.t-now.sel-s, .t-cap.t-now.sel-e { box-shadow: inset 0 0 0 2px #1e7e34; }
+    .t-cap .t-empty { color: #aeaeb2; font-weight: 400; }
+    .t-arrow { color: #aeaeb2; font-size: 13px; flex-shrink: 0; }
+    .t-dur { margin-left: auto; font-size: 12px; color: #8e8e93; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .t-dur.err { color: #ff3b30; font-weight: 600; }
+    .t-native { display: flex; gap: 8px; margin-bottom: 8px; }
+    .t-native .field { margin-bottom: 0; }
+    .t-quick-label { font-size: 11px; color: #aeaeb2; margin-bottom: 5px; }
+    .t-qrow { display: flex; gap: 6px; margin-bottom: 6px; }
+    .t-q { flex: 1; background: #f2f2f7; border: none; border-radius: 12px; padding: 7px 0; font-size: 13px; font-weight: 600; color: #3a3a3c; font-family: inherit; cursor: pointer; text-align: center; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
+    .t-q:active { background: #e5e5ea; }
+    .t-qset { display: flex; gap: 6px; margin-bottom: 10px; }
+    .t-qs { background: #f2f2f7; border: none; border-radius: 12px; padding: 6px 14px; font-size: 13px; font-weight: 600; color: #3a3a3c; font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .t-qs:active { background: #e5e5ea; }
     .cal-tag {
       display: inline-flex; align-items: center; gap: 4px;
       background: #f2f2f7; border-radius: 20px;
@@ -4306,123 +4342,63 @@ function renderRecordFormBody(mode, data) {
   const isEnd  = mode === 'end'
   const isEdit = mode === 'edit'
 
-  // ── 公共字段：标题 + 分类 + 备注 ──
+  // ── 公共字段：任务面板（输入框与 chips 互斥显示，任务名只出现一次）+ 分类胶囊 + 紧凑时间行 + 备注 ──
+  // 原生 date/time input 仍是提交逻辑的数据源，默认收在胶囊下方的展开区里
   let html = `
-    <div class="field">
-      <div class="form-chip-row">
-        <div class="cat-chips" id="f-habit-chips"></div>
+    <div class="form-chip-row">
+      <div class="cat-chips visible" id="f-habit-chips"></div>
+    </div>
+    <div id="f-picker">
+      <div class="pk-cats" id="f-picker-cats"></div>
+      <div class="pk-panel">
+        <input type="text" id="f-title" placeholder="输入新任务，或从下方选择"
+          enterkeyhint="done"
+          oninput="onTitleInput('f-title','f-cat');_pickedTask=null;renderTaskPicker();filterTitleSuggestions()"
+          onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur()}">
+        <div class="pk-tasks" id="f-picker-tasks"></div>
       </div>
-      <div class="cat-chips" id="f-hist-chips" style="margin-bottom:6px"></div>
-      <input type="text" id="f-title" placeholder="任务名称"
-        enterkeyhint="done"
-        oninput="onTitleInput('f-title','f-cat');filterHistChips('f-hist-chips','f-title','f-cat');filterTitleSuggestions()"
-        onfocus="renderHabitChips();showChips('f-habit-chips');renderHistChips('f-hist-chips','f-title','f-cat');showChips('f-hist-chips')"
-        onblur="hideChips('f-habit-chips');hideChips('f-hist-chips')"
-        onkeydown="if(event.key==='Enter'){event.preventDefault(); this.blur()}">
     </div>
-    <div class="field">
-      <div class="cat-chips" id="f-cat-chips" style="margin-bottom:6px"></div>
-      <input type="text" id="f-cat" placeholder="${isEnd ? '分类（必填）' : '分类（选填）'}" onfocus="showChips('f-cat-chips')" onblur="hideChips('f-cat-chips')">
+    <!-- 分类不再用输入框：点上方分类胶囊即设定分类（当前生效的胶囊带 ✓），隐藏 input 仅作提交/校验逻辑的数据源 -->
+    <input type="hidden" id="f-cat">
+    <div class="t-row">
+      <button type="button" class="t-cap" id="f-tcap-start" onclick="tapTimeCap('start')"></button>
+      <span class="t-arrow">→</span>
+      <button type="button" class="t-cap" id="f-tcap-end" onclick="tapTimeCap('end')"></button>
+      <span class="t-dur" id="f-tdur"></span>
     </div>
+    <div class="t-native" id="f-native-start" style="display:none">
+      <div class="field" style="flex:1.2"><input type="date" id="f-start-date" onchange="markStartTouched()"></div>
+      <div class="field" style="flex:1"><input type="time" id="f-start-time" onchange="markStartTouched()"></div>
+    </div>
+    <div class="t-native" id="f-native-end" style="display:none">
+      <div class="field" style="flex:1.2"><input type="date" id="f-end-date" onchange="markEndDateTouched()"></div>
+      <div class="field" style="flex:1"><input type="time" id="f-end-time" onchange="_onFormEndTimeChange();updateSubmitBtn()"></div>
+    </div>
+    <div class="t-quick-label" id="f-tqlabel"></div>
+    <div class="t-qrow" id="f-tqrow"></div>
+    <div class="t-qset" id="f-tqset"></div>
     <div class="field">
       <textarea id="f-notes" placeholder="备注（选填）"></textarea>
     </div>`
 
   if (isEdit) {
-    // ── 编辑模式：与 start/backfill 一致的日期/时刻分行布局 ──
     html += `
-      <div class="row-2" style="grid-template-columns:1.2fr 1.3fr;margin-top:8px">
-        <div class="field"><label>开始日期</label><input type="date" id="f-start-date"></div>
-        <div class="field">
-          <label>开始时刻</label>
-          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-            <div class="time-wrap" style="flex:1;min-width:110px">
-              <input type="time" id="f-start-time">
-              <button type="button" class="time-refresh" onclick="setEditStartNow()" title="设为当前时间">⟳</button>
-            </div>
-            <button type="button" class="ai-reset-btn" onclick="setEditStartLast()" title="取上一任务结束时间" style="padding:4px 8px;background:#f2f2f7;border-radius:8px">Last</button>
-          </div>
-        </div>
-      </div>
-      <div class="row-2" style="grid-template-columns:1.2fr 1.3fr;margin-top:8px">
-        <div class="field"><label>结束日期</label><input type="date" id="f-end-date"></div>
-        <div class="field">
-          <label>结束时刻</label>
-          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-            <div class="time-wrap" style="flex:1;min-width:110px">
-              <input type="time" id="f-end-time">
-              <button type="button" class="time-refresh" onclick="setEditEndNow()" title="设为当前时间">⟳</button>
-            </div>
-            <button type="button" class="ai-reset-btn" onclick="addFormEnd15()" title="结束时刻递增 15 分钟" style="padding:4px 8px;background:#f2f2f7;border-radius:8px">+15</button>
-          </div>
-        </div>
-      </div>
       <div class="modal-actions">
         <button class="btn-danger" onclick="submitRecordForm('delete')">删除</button>
         <button class="btn-cancel" onclick="closeRecordModal()">取消</button>
         <button class="btn-primary" onclick="submitRecordForm('edit')">保存</button>
       </div>`
   } else if (isEnd) {
-    // ── 结束模式：开始日期/时刻（预填任务原开始时间）+ 结束时间 Now 态 + 计划选择器 ──
+    // ── 结束模式：紧凑时间行（开始预填可改，结束默认 Now 态）──
     html += `
-      <div class="row-2" style="grid-template-columns:1.2fr 1.3fr;margin-top:8px">
-        <div class="field"><label>开始日期</label><input type="date" id="f-start-date" onchange="markStartTouched()"></div>
-        <div class="field">
-          <label>开始时刻</label>
-          <div class="time-wrap">
-            <input type="time" id="f-start-time" onchange="markStartTouched()">
-            <button type="button" class="time-refresh" onclick="setFormStartNow()" title="设为当前时间">⟳</button>
-          </div>
-        </div>
-      </div>
-      <div class="row-2" style="grid-template-columns:1.2fr 1.3fr;margin-top:8px">
-        <div class="field"><label>结束日期</label><input type="date" id="f-end-date" onchange="markEndDateTouched()"></div>
-        <div class="field">
-          <label>结束时刻</label>
-          <div style="display:flex;gap:12px;align-items:center">
-            <div class="time-wrap" style="flex:1">
-              <input type="time" id="f-end-time" class="now-masked" onchange="_onFormEndTimeChange()">
-              <span class="time-now-hint" id="f-end-now-hint">Now</span>
-              <button type="button" class="time-refresh" onclick="setFormEndNow()" title="设为当前时间">⟳</button>
-            </div>
-          </div>
-        </div>
-      </div>
       <!-- 计划模块已隐藏，计划选择器暂不渲染 -->
       <!-- <div id="f-plan-picker" style="margin-top:8px"></div> -->
       <div style="margin-top:8px">
         <button class="btn-primary" id="f-end-btn" onclick="submitRecordForm('end')">⏹ 结束任务</button>
       </div>`
   } else {
-    // ── 开始 / 补录模式：完整时间字段 + 双按钮 ──
+    // ── 开始 / 补录模式：紧凑时间行 + 双按钮 ──
     html += `
-      <div class="row-2" style="grid-template-columns:1.2fr 1.3fr">
-        <div class="field"><label>开始日期</label><input type="date" id="f-start-date" onchange="markStartTouched()"></div>
-        <div class="field">
-          <label>开始时刻 <span id="f-start-hint" style="font-size:11px;color:#aeaeb2;font-weight:400;text-transform:none;letter-spacing:0;display:none">（上次结束时间）</span></label>
-          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-            <div class="time-wrap" style="flex:1;min-width:110px">
-              <input type="time" id="f-start-time" onchange="markStartTouched()">
-              <span class="time-now-hint" id="f-start-now-hint">Now</span>
-              <button type="button" class="time-refresh" onclick="setFormStartNow()" title="设为当前时间">⟳</button>
-            </div>
-            <button type="button" id="f-start-last" class="ai-reset-btn" onclick="setFormStartLast()" style="padding:4px 8px;background:#f2f2f7;border-radius:8px">Last</button>
-          </div>
-        </div>
-      </div>
-      <div class="row-2" style="grid-template-columns:1.2fr 1.3fr">
-        <div class="field"><label>结束日期</label><input type="date" id="f-end-date" onchange="markEndDateTouched()"></div>
-        <div class="field">
-          <label>结束时刻 <span style="font-size:11px;color:#aeaeb2;font-weight:400;text-transform:none;letter-spacing:0">（补录时填）</span></label>
-          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
-            <div class="time-wrap" style="flex:1;min-width:110px">
-              <input type="time" id="f-end-time" onchange="updateSubmitBtn()">
-              <button type="button" class="time-refresh" onclick="setFormEndNow()" title="设为当前时间">⟳</button>
-            </div>
-            <button type="button" class="ai-reset-btn" onclick="addFormEnd15()" title="结束时刻递增 15 分钟" style="padding:4px 8px;background:#f2f2f7;border-radius:8px">+15</button>
-          </div>
-        </div>
-      </div>
       <div style="display:flex;gap:8px;margin-top:4px">
         <button class="btn-primary" id="f-start-btn" onclick="submitRecordForm('start')" style="flex:1;margin-top:0">▶ 开始计时</button>
         <button class="btn-secondary" id="f-backfill-btn" onclick="submitRecordForm('backfill')" style="flex:1;margin-top:0" disabled>📝 补录任务</button>
@@ -4432,28 +4408,297 @@ function renderRecordFormBody(mode, data) {
   return html
 }
 
-// 弹层滑入动画结束后再聚焦：iOS 键盘按聚焦那一刻的元素坐标计算遮挡补偿，
-// 动画进行中聚焦会拿到移动中的坐标导致补偿失败（输入框被键盘盖住）
-function focusRecordField(el) {
-  if (!el) return
-  const card = document.querySelector('#record-modal .modal-card')
-  const doFocus = () => {
-    if (!document.getElementById('record-modal')?.classList.contains('open')) return
-    el.focus()
-    // 键盘完全升起（~300ms）后复查：仍被遮住才手动滚动；Safari 已抬好的情况不动，避免二次跳动
-    setTimeout(() => {
-      const vv = window.visualViewport
-      if (!vv) return
-      const r = el.getBoundingClientRect()
-      if (r.bottom > vv.offsetTop + vv.height - 8) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    }, 350)
+// ══════════════════════════════════════════════════════════
+// 任务点选选择器：分类胶囊行 + 任务 chips 网格
+// 数据来自全部 done_tasks，按分类分组；相近名称用统计页同款算法做展示层合并
+//（代表名取最近一次使用的写法，历史数据不动），按最近使用从近到远排序
+// ══════════════════════════════════════════════════════════
+let _pickerData = null    // [{cat, tasks:[{name, keys, last}]}]，每次打开弹窗重建
+let _pickerCat = null     // 当前选中的分类
+let _pickedTask = null    // 通过点选填入标题的任务名（chips 高亮 + 浏览/过滤态判断用）
+
+function buildPickerData() {
+  const byCat = {}
+  loadDoneTasks().forEach(t => {
+    const title = (t.title || '').trim()
+    if (!title) return
+    const cat = (t.category || '').trim() || '未分类'
+    const ms = new Date(t.start).getTime() || 0
+    ;(byCat[cat] = byCat[cat] || []).push({ title, ms })
+  })
+  const preset = loadUserCalendars()
+  const lastOf = cat => (byCat[cat] || []).reduce((m, e) => Math.max(m, e.ms), 0)
+  // 分类胶囊 = 全部用户日历分类（无历史任务的也要能选，输入框已移除，这是唯一的分类入口）
+  // + 有历史任务但不在日历里的分类（按最近活跃度），「未分类」固定垫底
+  const extra = Object.keys(byCat).filter(c => c !== '未分类' && !preset.includes(c)).sort((a, b) => lastOf(b) - lastOf(a))
+  const cats = [...preset, ...extra]
+  if (byCat['未分类']) cats.push('未分类')
+  _pickerData = cats.map(cat => {
+    // 按开始时间从近到远遍历，第一个出现的写法即代表名（最近一次使用的写法）
+    const clusters = []
+    ;(byCat[cat] || []).sort((a, b) => b.ms - a.ms).forEach(({ title, ms }) => {
+      const key = _titleNorm(title)
+      const hit = clusters.find(c => c.keys.some(k => _sameTaskTitle(k, key)))
+      if (hit) hit.keys.push(key)
+      else clusters.push({ keys: [key], name: title, last: ms })
+    })
+    return { cat, tasks: clusters }
+  })
+}
+
+function _pkJs(s) { return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'") }
+function _pkTaskChip(name, cat) {
+  return `<button type="button" class="pk-task${name === _pickedTask ? ' sel' : ''}" onclick="pickTaskChip('${_pkJs(name)}','${_pkJs(cat)}')">${escHtml(name)}</button>`
+}
+
+function renderTaskPicker() {
+  if (!_pickerData) buildPickerData()
+  const catsEl = document.getElementById('f-picker-cats')
+  const tasksEl = document.getElementById('f-picker-tasks')
+  const titleEl = document.getElementById('f-title')
+  if (!catsEl || !tasksEl || !titleEl || !_pickerData) return
+  // 已选态：任务名只在高亮 chip 上展示一次，输入框隐藏；点高亮 chip 取消选择回到输入态
+  const picked = _pickedTask && titleEl.value === _pickedTask ? _pickedTask : null
+  // 已选态下习惯打卡行同样隐藏（已选信息只留一处），取消选择后随输入框一起恢复
+  const habitRow = document.getElementById('f-habit-chips')
+  if (habitRow) habitRow.style.display = picked ? 'none' : ''
+  const pickedChip = picked
+    ? `<button type="button" class="pk-task sel" onclick="clearPickedTask()" title="取消选择，改为手动输入">${escHtml(picked)}<span class="pk-x">×</span></button>`
+    : ''
+  if (!_pickerData.length) {
+    catsEl.innerHTML = ''
+    titleEl.style.display = picked ? 'none' : ''
+    tasksEl.innerHTML = pickedChip || '<div class="pk-empty">还没有历史任务，直接输入新任务名</div>'
+    return
   }
-  if (!card) { setTimeout(doFocus, 300); return }
-  let fired = false
-  const onEnd = e => { if (e.target === card && e.propertyName === 'transform') fire() }
-  const fire = () => { if (fired) return; fired = true; card.removeEventListener('transitionend', onEnd); doFocus() }
-  card.addEventListener('transitionend', onEnd)
-  setTimeout(fire, 400)  // 兜底：动画未触发 transitionend（如从 display:none 首帧无过渡）时照常聚焦
+  const q = (titleEl.value || '').toLowerCase().trim()
+  // 分类胶囊行（浏览态/过滤态都保留——过滤时仍要选分类）；与表单当前分类一致的胶囊带 ✓
+  const renderCatsRow = () => {
+    if (!_pickerCat || !_pickerData.some(c => c.cat === _pickerCat)) _pickerCat = _pickerData[0].cat
+    const formCat = (document.getElementById('f-cat')?.value || '').trim()
+    catsEl.innerHTML = _pickerData.map(c => {
+      // 分类色直接填充胶囊背景（未分类用中性灰）；选中态 = 背景色加深（22% 透明度 → 全色）
+      const color = c.cat === '未分类' ? '#8E8E93' : getCatColor(c.cat)
+      const sel = c.cat === _pickerCat
+      // 已选态/预填态：表单分类 = 浏览分类，加深高亮即已选含义，不再加 ✓；
+      // ✓ 只用于两者不一致时（手动输入被联想回填了分类，但浏览的是另一个分类）
+      const check = c.cat === formCat && !sel ? '✓ ' : ''
+      return `<button type="button" class="pk-cat${sel ? ' sel' : ''}" style="background:${sel ? color : hexToRgba(color, 0.22)}" onclick="pickPickerCat('${_pkJs(c.cat)}')">${check}${escHtml(c.cat)}</button>`
+    }).join('')
+  }
+  // 过滤态：用户在手动输入（非已选态）时，跨分类匹配、按近期排序
+  if (q && !picked) {
+    const hits = []
+    _pickerData.forEach(c => c.tasks.forEach(t => { if (t.name.toLowerCase().includes(q)) hits.push({ name: t.name, cat: c.cat, last: t.last }) }))
+    hits.sort((a, b) => b.last - a.last)
+    renderCatsRow()
+    titleEl.style.display = ''
+    tasksEl.innerHTML = hits.length
+      ? hits.slice(0, 10).map(t => _pkTaskChip(t.name, t.cat)).join('')
+      : '<div class="pk-empty">无匹配历史任务，将作为新任务保存</div>'
+    return
+  }
+  // 浏览态：分类胶囊 + 所选分类的任务 chips
+  renderCatsRow()
+  const cur = _pickerData.find(c => c.cat === _pickerCat)
+  titleEl.style.display = picked ? 'none' : ''
+  // 已选任务固定为网格首枚高亮 chip（不在本分类前 10 里也补出来）；其余只展示最近使用的 10 个
+  let chips = cur ? cur.tasks.slice(0, 10) : []
+  if (picked) chips = chips.filter(t => t.name !== picked)
+  const html = pickedChip + chips.map(t => _pkTaskChip(t.name, cur ? cur.cat : '')).join('')
+  tasksEl.innerHTML = html || '<div class="pk-empty">该分类还没有历史任务，直接输入新任务名</div>'
+}
+
+// 取消已选任务：回到初始状态——输入框清空并重新显示，分类保留（点下一枚 chip 会覆盖）
+function clearPickedTask() {
+  _pickedTask = null
+  const titleEl = document.getElementById('f-title')
+  if (titleEl) titleEl.value = ''
+  renderTaskPicker()
+  filterTitleSuggestions()
+}
+
+// 点分类胶囊：切换浏览的分类，同时把它设为表单分类（分类输入框已移除，这是设定入口）
+function pickPickerCat(cat) {
+  _pickerCat = cat
+  const catEl = document.getElementById('f-cat')
+  if (catEl) catEl.value = cat === '未分类' ? '' : cat
+  renderTaskPicker()
+}
+
+// 点任务 chips：标题 + 分类一次带出（分类优先用学习映射，其次用该任务所在分类）
+function pickTaskChip(title, cat) {
+  _pickedTask = title
+  _pickerCat = cat
+  const titleEl = document.getElementById('f-title')
+  const catEl = document.getElementById('f-cat')
+  if (titleEl) titleEl.value = title
+  if (catEl) catEl.value = suggestCat(title) || (cat === '未分类' ? '' : cat)
+  renderTaskPicker()
+  filterTitleSuggestions()
+}
+
+// ══════════════════════════════════════════════════════════
+// 紧凑时间行：开始→结束胶囊 + 快捷微调（±30/±15/±5 分钟）+ 快捷设置（最后/现在/复原）
+// 胶囊是原生 date/time input 的可视层（提交逻辑仍读 input 值）；
+// Now 态（start 模式的开始 / end 模式的结束）在微调或展开前先实体化为当前时刻
+// ══════════════════════════════════════════════════════════
+let _timeSel = 'start'   // 当前选中端点：start | end
+let _timeSnap = null     // 打开弹窗时的时间快照，「复原」用
+const TIME_QUICK_DELTAS = [-30, -15, -5, 5, 15, 30]
+const TIME_DOW = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
+
+const _isStartBackfill = () => _recordMode === 'start' || _recordMode === 'backfill'
+const _startIsNow = () => _isStartBackfill() && _startMode === 'now'
+const _endIsNow = () => {
+  const et = document.getElementById('f-end-time')
+  return _recordMode === 'end' && !!et && !et.value
+}
+
+// 胶囊文案：full=true 显示「MM-DD 周X HH:MM」，否则只显示「HH:MM」（与另一端点同一天时）
+function _capHTML(dateVal, timeVal, full) {
+  if (!timeVal) return null
+  const d = new Date((dateVal || fmtDateOnly(new Date())) + 'T' + timeVal)
+  if (isNaN(d)) return null
+  const hm = timeVal.slice(0, 5)
+  if (!full) return escHtml(hm)
+  const md = `${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return `${md} <span class="t-dow">${TIME_DOW[d.getDay()]}</span> ${hm}`
+}
+
+function renderTimeRow() {
+  const sd = document.getElementById('f-start-date'), st = document.getElementById('f-start-time')
+  const ed = document.getElementById('f-end-date'),   et = document.getElementById('f-end-time')
+  const cs = document.getElementById('f-tcap-start'), ce = document.getElementById('f-tcap-end')
+  const dur = document.getElementById('f-tdur')
+  if (!sd || !st || !ed || !et || !cs || !ce || !dur) return
+
+  const startNow = _startIsNow(), endNow = _endIsNow()
+  cs.className = 't-cap' + (startNow ? ' t-now' : '') + (_timeSel === 'start' ? ' sel-s' : '')
+  cs.innerHTML = startNow ? '现在'
+    : (_capHTML(sd.value, st.value, true) || '<span class="t-empty">开始时间</span>')
+  ce.className = 't-cap' + (endNow ? ' t-now' : '') + (_timeSel === 'end' ? ' sel-e' : '')
+  ce.innerHTML = endNow ? '现在'
+    : (_capHTML(ed.value, et.value, ed.value !== sd.value) || `<span class="t-empty">${_isStartBackfill() ? '结束（补录）' : '结束时间'}</span>`)
+
+  // 时长：Now 态按当前时刻算；结束不晚于开始则红色警示
+  const startMs = startNow ? Date.now() : (sd.value && st.value ? new Date(sd.value + 'T' + st.value).getTime() : NaN)
+  const endMs   = endNow   ? Date.now() : (ed.value && et.value ? new Date(ed.value + 'T' + et.value).getTime() : NaN)
+  if (!isNaN(startMs) && !isNaN(endMs)) {
+    const mins = Math.round((endMs - startMs) / 60000)
+    if (mins <= 0) { dur.textContent = '结束早于开始'; dur.className = 't-dur err' }
+    else {
+      const h = Math.floor(mins / 60), m = mins % 60
+      dur.textContent = h ? (m ? `${h}小时${m}分` : `${h}小时`) : `${m}分`
+      dur.className = 't-dur'
+    }
+  } else { dur.textContent = ''; dur.className = 't-dur' }
+}
+
+function renderTimeQuick() {
+  const label = document.getElementById('f-tqlabel')
+  const row = document.getElementById('f-tqrow')
+  const set = document.getElementById('f-tqset')
+  if (!label || !row || !set) return
+  const isStart = _timeSel === 'start'
+  label.textContent = isStart ? '微调开始时间（分钟）' : '微调结束时间（分钟）'
+  row.innerHTML = TIME_QUICK_DELTAS.map(m =>
+    `<button type="button" class="t-q" onclick="adjustTimeEndpoint(${m})">${m > 0 ? '+' : ''}${m}</button>`).join('')
+  set.innerHTML =
+    (isStart ? `<button type="button" class="t-qs" onclick="quickSetTime('last')">最后</button>` : '') +
+    `<button type="button" class="t-qs" onclick="quickSetTime('now')">现在</button>` +
+    `<button type="button" class="t-qs" onclick="quickSetTime('reset')">复原</button>`
+}
+
+// 点胶囊：第一次选中端点；再点展开/收起该端点的原生日期/时刻输入（系统滚轮选择，不弹键盘）
+function tapTimeCap(ep) {
+  const native = document.getElementById(ep === 'start' ? 'f-native-start' : 'f-native-end')
+  if (_timeSel !== ep) {
+    _timeSel = ep
+    renderTimeRow()
+    renderTimeQuick()
+    return
+  }
+  if (!native) return
+  const opening = native.style.display === 'none'
+  if (opening) materializeEndpoint(ep)
+  native.style.display = opening ? 'flex' : 'none'
+}
+
+// Now 态端点在微调/展开前先实体化为当前时刻（所见即所交）
+function materializeEndpoint(ep) {
+  if (ep === 'start' && _startIsNow()) setFormStartNow()
+  if (ep === 'end' && _endIsNow()) setFormEndNow()
+}
+
+function adjustTimeEndpoint(mins) {
+  materializeEndpoint(_timeSel)
+  const dEl = document.getElementById(_timeSel === 'start' ? 'f-start-date' : 'f-end-date')
+  const tEl = document.getElementById(_timeSel === 'start' ? 'f-start-time' : 'f-end-time')
+  if (!dEl || !tEl) return
+  let base
+  if (tEl.value) {
+    base = new Date(`${dEl.value || fmtDateOnly(new Date())}T${tEl.value}`)
+  } else if (_timeSel === 'end') {
+    // 结束为空（补录未填）：以开始时间为底，开始也没有就以当前时刻为底
+    const sd = document.getElementById('f-start-date').value
+    const st = document.getElementById('f-start-time').value
+    base = (sd && st) ? new Date(`${sd}T${st}`) : new Date()
+  } else {
+    base = new Date()
+  }
+  if (isNaN(base)) base = new Date()
+  const d = new Date(base.getTime() + mins * 60000)
+  dEl.value = fmtDateOnly(d)
+  tEl.value = fmtTime(d)
+  if (_timeSel === 'start') markStartTouched()
+  else _onFormEndTimeChange()
+  updateSubmitBtn()
+  renderTimeRow()
+}
+
+function quickSetTime(kind) {
+  if (kind === 'reset') { restoreTimeSnap(); return }
+  if (kind === 'last') {
+    if (_timeSel !== 'start') return
+    if (_recordMode === 'edit') setEditStartLast()
+    else setFormStartLast()
+  } else if (kind === 'now') {
+    if (_timeSel === 'start') { _recordMode === 'edit' ? setEditStartNow() : setFormStartNow() }
+    else { _recordMode === 'edit' ? setEditEndNow() : setFormEndNow() }
+  }
+  renderTimeRow()
+}
+
+function takeTimeSnap() {
+  _timeSnap = {
+    sd: document.getElementById('f-start-date')?.value || '',
+    st: document.getElementById('f-start-time')?.value || '',
+    ed: document.getElementById('f-end-date')?.value || '',
+    et: document.getElementById('f-end-time')?.value || '',
+    startMode: _startMode,
+    endTouched: _endDateTouched,
+  }
+}
+
+function restoreTimeSnap() {
+  if (!_timeSnap) return
+  const sd = document.getElementById('f-start-date'), st = document.getElementById('f-start-time')
+  const ed = document.getElementById('f-end-date'),   et = document.getElementById('f-end-time')
+  if (!sd || !st || !ed || !et) return
+  sd.value = _timeSnap.sd; st.value = _timeSnap.st
+  ed.value = _timeSnap.ed; et.value = _timeSnap.et
+  _startMode = _timeSnap.startMode
+  _endDateTouched = _timeSnap.endTouched
+  if (_isStartBackfill()) {
+    const now = _startMode === 'now'
+    _setFormDim('f-start-date', now)
+    _setFormDim('f-start-time', now)
+    _setStartNowMask(now)
+  }
+  if (_recordMode === 'end') _setEndNowMaskForm(!_timeSnap.et)
+  updateSubmitBtn()
+  renderTimeRow()
 }
 
 function openRecordModal(mode, data) {
@@ -4553,16 +4798,19 @@ function openRecordModal(mode, data) {
     onTitleInput('f-title', 'f-cat')
   }
 
-  // 公共：渲染分类 chips 和历史 chips
-  renderCatChips('f-cat-chips', 'f-cat')
+  // 公共初始化：习惯 chips、任务点选选择器、紧凑时间行
+  // 点选优先交互：不自动聚焦任何输入框，键盘只在用户主动点输入框时弹出
   renderHabitChips()
-  renderHistChips('f-hist-chips', 'f-title', 'f-cat')
-
-  // 聚焦：end 模式聚焦备注（任务名通常已确定，主要是补充笔记）；start/backfill 聚焦标题；编辑模式不自动聚焦
-  if (mode !== 'edit') {
-    const focusEl = mode === 'end' ? document.getElementById('f-notes') : document.getElementById('f-title')
-    focusRecordField(focusEl)
-  }
+  _pickerData = null
+  _pickerCat = (document.getElementById('f-cat')?.value || '').trim() || null
+  _pickedTask = (document.getElementById('f-title')?.value || '') || null
+  renderTaskPicker()
+  _timeSel = mode === 'end' ? 'end' : 'start'
+  document.getElementById('f-native-start').style.display = 'none'
+  document.getElementById('f-native-end').style.display = 'none'
+  takeTimeSnap()
+  renderTimeQuick()
+  renderTimeRow()
 
   document.getElementById('record-modal').classList.add('open')
   bindPwaFocusGuard()
@@ -4570,7 +4818,8 @@ function openRecordModal(mode, data) {
 
 // PWA（主屏幕独立模式）键盘遮挡兜底：该模式下 iOS 不压缩 viewport、不做遮挡补偿，
 // visualViewport 高度不变，无法检测键盘；卡片贴底高 85vh，卡片顶部（屏幕上方 15vh 起）
-// 必在键盘之上，聚焦后把字段滚到卡片顶部即保证可见。Safari 浏览器走 focusRecordField 的 vv 检查，不经过这里
+// 必在键盘之上，聚焦后把字段滚到卡片顶部即保证可见。记录弹窗已是点选优先、不自动聚焦，
+// 键盘只在用户主动点输入框时出现，此处为手动聚焦做兜底对齐
 function bindPwaFocusGuard() {
   const modal = document.getElementById('record-modal')
   if (!modal || modal._pwaFocusGuard) return
@@ -4598,11 +4847,9 @@ function closeRecordModal() {
   document.getElementById('record-modal')?.classList.remove('open')
 }
 
-// ── end 模式：结束时刻 Now 蒙层 ──
+// ── end 模式：结束时刻 Now 蒙层（Now 态由紧凑时间行的绿色「现在」胶囊展示）──
 function _setEndNowMaskForm(on) {
   document.getElementById('f-end-time')?.classList.toggle('now-masked', on)
-  const hint = document.getElementById('f-end-now-hint')
-  if (hint) hint.style.display = on ? '' : 'none'
 }
 function _onFormEndTimeChange() {
   const et = document.getElementById('f-end-time')
@@ -4615,6 +4862,7 @@ function _onFormEndTimeChange() {
     _setFormDim('f-end-date', false)
     _endDateTouched = true
   }
+  renderTimeRow()
 }
 
 // ── edit 模式：开始/结束时间设为当前 ──
@@ -4622,11 +4870,13 @@ function setEditStartNow() {
   const now = new Date()
   document.getElementById('f-start-date').value = fmtDateOnly(now)
   document.getElementById('f-start-time').value = fmtTime(now)
+  renderTimeRow()
 }
 function setEditEndNow() {
   const now = new Date()
   document.getElementById('f-end-date').value = fmtDateOnly(now)
   document.getElementById('f-end-time').value = fmtTime(now)
+  renderTimeRow()
 }
 
 // ── end 模式：计划选择器（渲染到统一表单的 #f-plan-picker）──
@@ -4689,11 +4939,9 @@ let _endDateTouched = false   // 结束日期是否被人工改过（改过则�
 
 function _setFormDim(id, on) { document.getElementById(id)?.classList.toggle('dim', on) }
 
-// Now 态蒙层：输入框文字透明（挡住原生 --:-- 占位），显示灰色「Now」标签
+// Now 态蒙层：输入框文字透明（挡住原生 --:-- 占位），Now 态由紧凑时间行的绿色「现在」胶囊展示
 function _setStartNowMask(on) {
   document.getElementById('f-start-time')?.classList.toggle('now-masked', on)
-  const hint = document.getElementById('f-start-now-hint')
-  if (hint) hint.style.display = on ? '' : 'none'
 }
 
 function resetRecordForm() {
@@ -4764,25 +5012,6 @@ function setFormEndNow() {
   updateSubmitBtn()
 }
 
-// +15min：结束时刻在当前值上递增 15 分钟（为空则以开始时刻为底），跨午夜自动推进结束日期
-function addFormEnd15() {
-  const endDateEl = document.getElementById('f-end-date')
-  const endTimeEl = document.getElementById('f-end-time')
-  let base
-  if (endTimeEl.value) {
-    base = new Date(`${endDateEl.value || fmtDateOnly(new Date())}T${endTimeEl.value}`)
-  } else {
-    const sd = document.getElementById('f-start-date').value
-    const st = document.getElementById('f-start-time').value
-    base = (sd && st) ? new Date(`${sd}T${st}`) : new Date()
-  }
-  if (isNaN(base)) base = new Date()
-  const d = new Date(base.getTime() + 15 * 60000)
-  endDateEl.value = fmtDateOnly(d)
-  endTimeEl.value = fmtTime(d)
-  updateSubmitBtn()
-}
-
 // 编辑模式的 Last：开始时刻取「当前开始时间之前最近结束的已完成任务」的结束时间；
 // 找不到就回退到当前开始时间前 1 小时（与 start 模式的全局 Last 不同——编辑的多是历史任务）
 function setEditStartLast() {
@@ -4796,9 +5025,11 @@ function setEditStartLast() {
   const d = prev ? new Date(prev.end) : new Date(curMs - 3600000)
   document.getElementById('f-start-date').value = fmtDateOnly(d)
   document.getElementById('f-start-time').value = fmtTime(d)
+  renderTimeRow()
 }
 
 function updateSubmitBtn() {
+  renderTimeRow()
   const startBtn = document.getElementById('f-start-btn')
   const bfBtn    = document.getElementById('f-backfill-btn')
   const endTimeEl = document.getElementById('f-end-time')
@@ -4814,9 +5045,6 @@ function updateSubmitBtn() {
   // 结束时刻有值 = 补录意图：开始计时置灰；结束时刻为空 = 计时意图：补录置灰
   startBtn.disabled = !!endTimeEl.value
   bfBtn.disabled    = !endTimeEl.value
-  // 开始时间提示只在 Last 态（显示上一任务结束时间）时出现
-  const hint = document.getElementById('f-start-hint')
-  if (hint) hint.style.display = _startMode === 'last' ? '' : 'none'
 }
 
 // 保存后若任务所在日期与当前查看日期不同，跳转到该日期（setTimelineDate 内部含 renderTimeline）
@@ -6025,7 +6253,12 @@ function pickHabitChip(name) {
   const el = document.getElementById('f-title')
   if (!el) return
   el.value = name
+  _pickedTask = name
   onTitleInput('f-title', 'f-cat')
+  // 与点任务 chip 一致：联想出的分类同步为浏览分类（蓝色高亮）
+  const cat = (document.getElementById('f-cat')?.value || '').trim()
+  if (cat) _pickerCat = cat
+  renderTaskPicker()
   el.blur()  // 选完即失焦收起键盘，大概率不会再继续输入
 }
 
@@ -6057,56 +6290,13 @@ function pickSleepChip() {
   }
   updateSubmitBtn()
   onTitleInput('f-title', 'f-cat')
-  // 睡眠场景一般直接开始计时，把焦点交给标题输入框方便用户确认/修改
-  setTimeout(() => titleEl?.focus(), 50)
+  _pickedTask = '睡眠'
+  // 与点任务 chip 一致：睡眠分类同步为浏览分类（蓝色高亮）
+  const sleepCat = (catEl?.value || '').trim()
+  if (sleepCat) _pickerCat = sleepCat
+  renderTaskPicker()
 }
 
-function renderHistChips(chipsId, titleId, catId) {
-  const el = document.getElementById(chipsId)
-  if (!el) return
-  const hist = loadHistory().slice(0, 6)
-  el.innerHTML = hist.map(h => {
-    const js = h.replace(/\\/g,'\\\\').replace(/'/g,'\\\'')
-    return `<span class="cat-chip">` +
-      `<span onclick="pickHistItem('${titleId}','${catId}','${js}')">${escHtml(h)}</span>` +
-      `<button type="button" class="hist-chip-del" onclick="deleteHistItem('${js}','${chipsId}','${titleId}','${catId}')">×</button>` +
-      `</span>`
-  }).join('')
-}
-// 从全部已完成任务记录里按标题模糊匹配（大小写不敏感、任意位置子串），按开始时间从近到远去重
-function searchDoneTaskTitles(q, limit = 6) {
-  const seen = new Set()
-  const out = []
-  const tasks = loadDoneTasks().slice().sort((a, b) => new Date(b.start) - new Date(a.start))
-  for (const t of tasks) {
-    const title = (t.title || '').trim()
-    if (!title || seen.has(title)) continue
-    if (q && !title.toLowerCase().includes(q)) continue
-    seen.add(title)
-    out.push(title)
-    if (out.length >= limit) break
-  }
-  return out
-}
-function filterHistChips(chipsId, titleId, catId) {
-  const el = document.getElementById(chipsId)
-  if (!el) return
-  const q = (document.getElementById(titleId)?.value || '').toLowerCase()
-  const hist = loadHistory()
-  // 有输入时：历史清单（最近使用，上限50）+ 全部已完成任务记录 两源合并去重，近的优先
-  const matches = q
-    ? [...new Set([...hist.filter(h => h.toLowerCase().includes(q)), ...searchDoneTaskTitles(q)])].slice(0, 6)
-    : hist.slice(0, 6)
-  el.innerHTML = matches.map(h => {
-    const js = h.replace(/\\/g,'\\\\').replace(/'/g,'\\\'')
-    return `<span class="cat-chip">` +
-      `<span onclick="pickHistItem('${titleId}','${catId}','${js}')">${escHtml(h)}</span>` +
-      `<button type="button" class="hist-chip-del" onclick="deleteHistItem('${js}','${chipsId}','${titleId}','${catId}')">×</button>` +
-      `</span>`
-  }).join('')
-  if (matches.length) showChips(chipsId)
-  else el.classList.remove('visible')
-}
 // 根据任务名称输入同步过滤习惯打卡与睡眠胶囊：空输入时全部显示，有输入时只保留匹配项
 function filterTitleSuggestions() {
   const habitEl = document.getElementById('f-habit-chips')
@@ -6120,17 +6310,7 @@ function filterTitleSuggestions() {
     chip.style.display = match ? '' : 'none'
     if (match) visible++
   })
-  if (!visible) habitEl.classList.remove('visible')
-}
-function pickHistItem(titleId, catId, title) {
-  document.getElementById(titleId).value = title
-  onTitleInput(titleId, catId)
-  document.getElementById(titleId).blur()  // 选完即失焦收起键盘
-}
-function deleteHistItem(title, chipsId, titleId, catId) {
-  localStorage.setItem(HIST_KEY, JSON.stringify(loadHistory().filter(h => h !== title)))
-  renderHistChips(chipsId, titleId, catId)
-  showChips(chipsId)
+  habitEl.classList.toggle('visible', visible > 0)
 }
 
 // ── 计划 详情弹窗 / 删除 / 拖拽 ──
@@ -6678,9 +6858,10 @@ function renameUserCal(oldName, newName) {
 
 function refreshAllCatUI() {
   ['plan-cat-list','sleep-cat-list'].forEach(refreshCatList)
-  renderCatChips('f-cat-chips',     'f-cat')
   renderCatChips('plan-cat-chips',  'plan-new-cat')
   renderCatChips('sleep-cat-chips', 's-sleep-cat')
+  // 记录弹窗打开中时，选择器的分类数据同步重建
+  if (document.getElementById('f-picker-cats')) { _pickerData = null; renderTaskPicker() }
 }
 
 function loadHistory() { try { return JSON.parse(localStorage.getItem(HIST_KEY) || '[]') } catch { return [] } }
