@@ -314,8 +314,7 @@
     .new-chat-btn { background: none; border: none; color: #7A9A6F; font-size: 14px; font-family: inherit; cursor: pointer; padding: 0; }
 
     /* 记录页：时间流视图 */
-    .nav-date-badge { position: absolute; top: -5px; right: 2px; background: #9AB88F; color: #fff; font-size: 10px; min-width: 16px; height: 16px; border-radius: 8px; display: flex; align-items: center; justify-content: center; padding: 0 3px; font-weight: 600; pointer-events: none; }
-    .tl-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 4px; }
+    .tl-toolbar { position: sticky; top: calc(52px + env(safe-area-inset-top)); z-index: 120; display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: -4px 0 0; padding: 4px 0; background: rgba(247,244,238,0.96); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
     .tl-toolbar-btn { display: inline-flex; align-items: center; gap: 4px; background: #fff; border: none; border-radius: 12px; padding: 6px 10px; font-size: 13px; font-weight: 500; color: #3a3a3c; font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; box-shadow: 0 1px 4px rgba(86,72,55,0.05); }
     .tl-toolbar-btn:active { opacity: 0.85; transform: scale(0.98); }
     .tl-date-capsule.selected { background: #9AB88F; color: #fff; font-weight: 600; }
@@ -591,6 +590,7 @@
     .t-qset { display: flex; gap: 6px; margin-bottom: 10px; }
     .t-qs { background: #f2f2f7; border: none; border-radius: 12px; padding: 6px 14px; font-size: 13px; font-weight: 600; color: #3a3a3c; font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
     .t-qs:active { background: #e5e5ea; }
+    .t-qs.sel { background: #e3efff; color: #007aff; box-shadow: inset 0 0 0 1.5px #007aff; }
     .cal-tag {
       display: inline-flex; align-items: center; gap: 4px;
       background: #f2f2f7; border-radius: 20px;
@@ -3740,7 +3740,7 @@ function renderTimeline() {
   renderTimelineNotesToggle()
   renderRecordFab()
 
-  // 切换日期后更新底部导航的日期标记和日期胶囊选中态
+  // 切换日期后更新全局导航和日期胶囊选中态
   renderToolBar()
   const yd = new Date(); yd.setDate(yd.getDate() - 1)
   const yesterday = fmtDateOnly(yd)
@@ -3788,7 +3788,7 @@ function scrollTimelineToCurrent(behavior = 'smooth') {
   if (card) card.style.paddingBottom = ''
   if (getTimelineDate() !== fmtDateOnly(new Date())) return
   if (!body) return
-  const topBarH = document.getElementById('tool-bar')?.getBoundingClientRect().height || 52
+  const topBarH = (document.getElementById('tool-bar')?.getBoundingClientRect().height || 52) + (document.getElementById('tl-toolbar')?.getBoundingClientRect().height || 0)
 
   const isTaskRow = el => el && el.classList.contains('tf-row') && el.querySelector('.tf-card') && !el.querySelector('.tf-gap-card')
 
@@ -4236,12 +4236,8 @@ function renderToolBar() {
   const bar = document.getElementById('tool-bar')
   if (!bar) return
   const cur = document.querySelector('.screen.active')?.id?.replace('screen-','')
-  const dateStr = getTimelineDate()
-  const today = fmtDateOnly(new Date())
-  const d = new Date(dateStr + 'T12:00:00')
-  const showBadge = dateStr !== today
   bar.innerHTML = `
-    <button id="nav-btn-record"    class="tool-bar-btn nav${cur==='record'?' nav-active':''}"     onclick="onNavRecordClick(event)">📝 记录${showBadge ? `<span class="nav-date-badge">${d.getDate()}</span>` : ''}</button>
+    <button id="nav-btn-record"    class="tool-bar-btn nav${cur==='record'?' nav-active':''}"     onclick="onNavRecordClick(event)">📝 记录</button>
     <button id="nav-btn-flash"     class="tool-bar-btn nav${cur==='flash'?' nav-active':''}"      onclick="go('flash')">💡 闪念</button>
     <button id="nav-btn-dashboard" class="tool-bar-btn nav${cur==='dashboard'?' nav-active':''}"  onclick="go('dashboard')">📊 统计</button>
     <button id="nav-btn-ai"        class="tool-bar-btn nav${cur==='ai'?' nav-active':''}"         onclick="go('ai')">🤖 复盘</button>
@@ -4611,9 +4607,11 @@ function renderTimeQuick() {
   row.innerHTML = TIME_QUICK_DELTAS.map(m =>
     `<button type="button" class="t-q" onclick="adjustTimeEndpoint(${m})">${m > 0 ? '+' : ''}${m}</button>`).join('')
   set.innerHTML =
-    (isStart ? `<button type="button" class="t-qs" onclick="quickSetTime('last')">最后</button>` : '') +
-    `<button type="button" class="t-qs" onclick="quickSetTime('now')">现在</button>` +
-    `<button type="button" class="t-qs" onclick="quickSetTime('reset')">复原</button>`
+    (isStart ? `<button type="button" class="t-qs" data-kind="last" onclick="quickSetTime('last')">最后</button>` : '') +
+    `<button type="button" class="t-qs" data-kind="now" onclick="quickSetTime('now')">现在</button>` +
+    (isStart
+      ? `<button type="button" class="t-qs" data-kind="reset" onclick="quickSetTime('reset')">复原</button>`
+      : `<button type="button" class="t-qs" data-kind="clear" onclick="quickSetTime('clear')">清空</button>`)
 }
 
 // 点胶囊：第一次选中端点；再点展开/收起该端点的原生日期/时刻输入（系统滚轮选择，不弹键盘）
@@ -4621,8 +4619,9 @@ function tapTimeCap(ep) {
   const native = document.getElementById(ep === 'start' ? 'f-native-start' : 'f-native-end')
   if (_timeSel !== ep) {
     _timeSel = ep
-    renderTimeRow()
     renderTimeQuick()
+    if (ep === 'end') quickSetTime('now')
+    else renderTimeRow()
     return
   }
   if (!native) return
@@ -4664,15 +4663,26 @@ function adjustTimeEndpoint(mins) {
 }
 
 function quickSetTime(kind) {
-  if (kind === 'reset') { restoreTimeSnap(); return }
-  if (kind === 'last') {
+  if (kind === 'reset') restoreTimeSnap()
+  else if (kind === 'last') {
     if (_timeSel !== 'start') return
     if (_recordMode === 'edit') setEditStartLast()
     else setFormStartLast()
   } else if (kind === 'now') {
     if (_timeSel === 'start') { _recordMode === 'edit' ? setEditStartNow() : setFormStartNow() }
     else { _recordMode === 'edit' ? setEditEndNow() : setFormEndNow() }
+  } else if (kind === 'clear') {
+    if (_timeSel !== 'end') return
+    const ed = document.getElementById('f-end-date'), et = document.getElementById('f-end-time')
+    if (!ed || !et) return
+    ed.value = ''; et.value = ''
+    _endDateTouched = false
+    _setFormDim('f-end-date', true)
+    _setFormDim('f-end-time', true)
+    _setEndNowMaskForm(_recordMode === 'end')
+    updateSubmitBtn()
   }
+  document.querySelectorAll('#f-tqset .t-qs').forEach(b => b.classList.toggle('sel', b.dataset.kind === kind))
   renderTimeRow()
 }
 
@@ -4817,6 +4827,7 @@ function openRecordModal(mode, data) {
   takeTimeSnap()
   renderTimeQuick()
   renderTimeRow()
+  if (_timeSel === 'end') quickSetTime('now')
 
   document.getElementById('record-modal').classList.add('open')
   bindPwaFocusGuard()
@@ -5036,6 +5047,7 @@ function setEditStartLast() {
 
 function updateSubmitBtn() {
   renderTimeRow()
+  renderTimeQuick()
   const startBtn = document.getElementById('f-start-btn')
   const bfBtn    = document.getElementById('f-backfill-btn')
   const endTimeEl = document.getElementById('f-end-time')
