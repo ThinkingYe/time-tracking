@@ -700,6 +700,23 @@
     .dash-sub-value { font-size: 12px; color: #8e8e93; font-variant-numeric: tabular-nums; white-space: nowrap; }
     .dash-variant-badge { display: inline-block; background: #f2f2f7; color: #8e8e93; font-size: 10px; font-weight: 600; border-radius: 6px; padding: 0 5px; margin-left: 4px; vertical-align: 1px; }
     .dash-collapse-all { border: none; background: transparent; padding: 4px 6px; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent; }
+    .dash-pie-wrap { position: relative; height: 220px; margin: 4px 0 16px; }
+    .dash-pie { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); width: 156px; height: 156px; border-radius: 50%; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.03); }
+    .dash-pie-leaders { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; pointer-events: none; }
+    .dash-pie-leaders polyline { fill: none; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; opacity: 0.65; }
+    .dash-pie-tag { position: absolute; z-index: 2; transform: translateY(-50%); display: flex; align-items: center; gap: 4px; max-width: 96px; font-size: 11px; line-height: 1.2; color: #3a3a3c; white-space: nowrap; }
+    .dash-pie-tag.left { flex-direction: row-reverse; text-align: right; }
+    .dash-pie-tag-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .dash-pie-tag-text { overflow: hidden; text-overflow: ellipsis; }
+    .dash-pie-center { position: absolute; inset: 24px; border-radius: 50%; background: #F7F4EE; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    .dash-pie-value { font-size: 22px; font-weight: 700; color: #1c1c1e; line-height: 1.1; font-variant-numeric: tabular-nums; }
+    .dash-pie-label { font-size: 11px; color: #8e8e93; margin-top: 4px; }
+    .dash-habit-square-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 4px; }
+    .dash-habit-square { aspect-ratio: 1; min-width: 0; border-radius: 14px; padding: 8px 5px; background: #e5e5ea; color: #3a3a3c; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    .dash-habit-square.done { background: #30d158; color: #fff; }
+    .dash-habit-square-icon { font-size: 20px; line-height: 1.2; margin-bottom: 4px; }
+    .dash-habit-square-name { font-size: 12px; font-weight: 600; line-height: 1.25; word-break: break-word; }
+    .dash-habit-square-status { font-size: 10px; line-height: 1.2; opacity: 0.75; margin-top: 4px; }
     .trend-chart-wrap { position: relative; height: 140px; padding-left: 34px; }
     .trend-y-axis { position: absolute; left: 0; top: 4px; bottom: 24px; width: 30px; display: flex; flex-direction: column; justify-content: space-between; font-size: 10px; color: #8e8e93; text-align: right; }
     .trend-chart { display: flex; gap: 4px; height: 140px; padding: 4px 0 24px; position: relative; }
@@ -2493,7 +2510,7 @@ let _dashHeatmapCat = 'all'
 let _dashTrendCat = 'all'
 let _dashCatMode = 'total' // 'total' | 'daily'
 let _dashSearchQuery = ''
-const _dashCatCollapsed = new Set() // 分类时间分布里被收起的分类（默认全部展开）
+const _dashCatExpanded = new Set() // 分类时间分布里被展开的分类（默认全部收起）
 
 function getDashboardRange(period) {
   const now = new Date()
@@ -2732,8 +2749,8 @@ function clusterTaskTitles(titleMap) {
 function toggleDashCat(el) {
   const cat = el.dataset.cat
   if (!cat) return
-  if (_dashCatCollapsed.has(cat)) _dashCatCollapsed.delete(cat)
-  else _dashCatCollapsed.add(cat)
+  if (_dashCatExpanded.has(cat)) _dashCatExpanded.delete(cat)
+  else _dashCatExpanded.add(cat)
   renderDashboard()
 }
 
@@ -2742,9 +2759,9 @@ let _dashCatList = []
 let _dashSubClusters = []  // 任务明细行注册表：点击穿透到编辑弹窗时反查原始记录用
 function toggleAllDashCats() {
   if (!_dashCatList.length) return
-  const allCollapsed = _dashCatList.every(c => _dashCatCollapsed.has(c))
-  if (allCollapsed) _dashCatList.forEach(c => _dashCatCollapsed.delete(c))
-  else _dashCatList.forEach(c => _dashCatCollapsed.add(c))
+  const allCollapsed = _dashCatList.every(c => !_dashCatExpanded.has(c))
+  if (allCollapsed) _dashCatList.forEach(c => _dashCatExpanded.add(c))
+  else _dashCatList.forEach(c => _dashCatExpanded.delete(c))
   renderDashboard()
 }
 
@@ -2762,7 +2779,7 @@ function renderDashCategories(tasks, start, end) {
   }
   const sorted = Object.entries(map).filter(([cat, mins]) => mins > 0).sort((a, b) => b[1] - a[1])
   _dashCatList = sorted.map(([cat]) => cat)
-  const allCollapsed = sorted.length > 0 && sorted.every(([cat]) => _dashCatCollapsed.has(cat))
+  const allCollapsed = sorted.length > 0 && sorted.every(([cat]) => !_dashCatExpanded.has(cat))
   const titleRow = `<div class="section-title-row">
       <div style="display:flex;align-items:center;gap:6px">
         <span class="section-title">分类时间分布</span>
@@ -2776,12 +2793,55 @@ function renderDashCategories(tasks, start, end) {
   if (!total || !sorted.length) return `${titleRow}<p class="empty-tip">该时段无数据</p>`
   const sleepCat = loadSettings().sleepCat
   const suffix = mode === 'daily' ? '/天' : ''
-  return titleRow + sorted.map(([cat, mins]) => {
+  let pieCursor = 0
+  const pieStops = sorted.map(([cat, mins], i) => {
+    const from = pieCursor
+    pieCursor += mins / total * 100
+    const to = i === sorted.length - 1 ? 100 : pieCursor
+    return `${getCatColor(cat)} ${from.toFixed(2)}% ${to.toFixed(2)}%`
+  }).join(', ')
+  const pieLabel = sorted.map(([cat, mins]) => `${cat} ${Math.round(mins / total * 100)}%`).join('、')
+  const pieTags = []
+  let pieTagCursor = 0
+  sorted.forEach(([cat, mins]) => {
+    const span = mins / total * 100
+    const mid = (pieTagCursor + span / 2) / 100 * Math.PI * 2
+    pieTagCursor += span
+    pieTags.push({ cat, pct: Math.round(span), color: getCatColor(cat), side: Math.cos(mid) >= 0 ? 'right' : 'left', y: 110 + Math.sin(mid) * 88, mid })
+  })
+  // 外部标签按左右侧分组，纵向至少间隔 22px，避免相邻小扇区的文字重叠
+  ;['left', 'right'].forEach(side => {
+    const tags = pieTags.filter(t => t.side === side).sort((a, b) => a.y - b.y)
+    let nextY = 12
+    tags.forEach(t => {
+      t.y = Math.max(t.y, nextY)
+      nextY = t.y + 22
+    })
+    if (tags.length) {
+      const overflow = tags[tags.length - 1].y - 208
+      if (overflow > 0) tags.forEach(t => { t.y -= overflow })
+      const underflow = 12 - tags[0].y
+      if (underflow > 0) tags.forEach(t => { t.y += underflow })
+    }
+  })
+  const pieTagsHtml = pieTags.map(t => {
+    const pos = t.side === 'right' ? 'left:calc(50% + 92px)' : 'right:calc(50% + 92px)'
+    return `<span class="dash-pie-tag ${t.side}" data-angle="${t.mid}" data-color="${t.color}" aria-hidden="true" style="top:${t.y.toFixed(1)}px;${pos}"><span class="dash-pie-tag-dot" style="background:${t.color}"></span><span class="dash-pie-tag-text">${escHtml(t.cat)} ${t.pct}%</span></span>`
+  }).join('')
+  const pieCenter = ((mode === 'daily' ? total / days : total) / 60).toFixed(1)
+  const pie = `<div class="dash-pie-wrap">
+    <svg class="dash-pie-leaders" aria-hidden="true"></svg>
+    ${pieTagsHtml}
+    <div class="dash-pie" role="img" aria-label="${escHtml(pieLabel).replace(/"/g, '&quot;')}" style="background:conic-gradient(${pieStops})">
+      <div class="dash-pie-center"><span class="dash-pie-value">${pieCenter}h</span><span class="dash-pie-label">${mode === 'daily' ? '日均 / 天' : '总时长'}</span></div>
+    </div>
+  </div>`
+  return titleRow + pie + sorted.map(([cat, mins]) => {
     const displayMins = mode === 'daily' ? mins / days : mins
     const pct = Math.round(mins / total * 100)
     const h = (displayMins / 60).toFixed(1)
     const color = getCatColor(cat)
-    const collapsed = _dashCatCollapsed.has(cat)
+    const collapsed = !_dashCatExpanded.has(cat)
     // 任务名称层（柳比歇夫式）：同分类内按名称聚合，相近写法合并，占分类百分比，按时长倒序
     let subRows = ''
     if (!collapsed) {
@@ -2818,6 +2878,40 @@ function renderDashCategories(tasks, start, end) {
       </div>`
   }).join('')
 }
+
+function renderDashPieLeaders() {
+  const wrap = document.querySelector('#dash-categories .dash-pie-wrap')
+  const pie = wrap?.querySelector('.dash-pie')
+  const svg = wrap?.querySelector('.dash-pie-leaders')
+  if (!wrap || !pie || !svg) return
+  const wrapRect = wrap.getBoundingClientRect()
+  const pieRect = pie.getBoundingClientRect()
+  const cx = pieRect.left + pieRect.width / 2 - wrapRect.left
+  const cy = pieRect.top + pieRect.height / 2 - wrapRect.top
+  const radius = pieRect.width / 2 - 1
+  svg.setAttribute('viewBox', `0 0 ${wrap.clientWidth} ${wrap.clientHeight}`)
+  const lines = []
+  wrap.querySelectorAll('.dash-pie-tag').forEach(tag => {
+    const angle = Number(tag.dataset.angle)
+    if (!Number.isFinite(angle)) return
+    const tagRect = tag.getBoundingClientRect()
+    const right = tag.classList.contains('right')
+    const startX = cx + Math.cos(angle) * radius
+    const startY = cy + Math.sin(angle) * radius
+    const elbowX = cx + Math.cos(angle) * (radius + 12)
+    const elbowY = cy + Math.sin(angle) * (radius + 12)
+    const labelY = tagRect.top + tagRect.height / 2 - wrapRect.top
+    const labelX = right ? tagRect.left - wrapRect.left - 5 : tagRect.right - wrapRect.left + 5
+    const points = [[startX, startY], [elbowX, elbowY], [elbowX, labelY], [labelX, labelY]]
+      .map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
+    lines.push(`<polyline points="${points}" style="stroke:${tag.dataset.color}"/>`)
+  })
+  svg.innerHTML = lines.join('')
+}
+
+window.addEventListener('resize', () => {
+  if (document.getElementById('screen-dashboard')?.classList.contains('active')) renderDashPieLeaders()
+})
 
 // ── 任务明细行穿透编辑 ──
 // 聚合行可能对应多条原始记录（同名多天/相近写法合并）：1 条直接开编辑弹窗，多条先弹选择列表
@@ -2914,7 +3008,7 @@ function habitDoneDaySets(tasks) {
       }
     }
 
-    if (hasSource) result.push({ name: h.name, keys })
+    if (hasSource) result.push({ name: h.name, icon: h.icon || '', keys })
   }
   return result
 }
@@ -2941,7 +3035,16 @@ function renderDashHabits(tasks, start, end) {
   rangeEnd = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth(), rangeEnd.getDate())
   const dayCount = Math.round((rangeEnd - rangeStart) / 86400000) + 1
 
+  const singleDay = dayCount === 1
   const rows = habits.map(h => {
+    if (singleDay) {
+      const done = h.keys.has(fmtDateOnly(rangeStart))
+      return `<div class="dash-habit-square${done ? ' done' : ''}">
+        ${h.icon ? `<span class="dash-habit-square-icon">${escHtml(h.icon)}</span>` : ''}
+        <span class="dash-habit-square-name">${escHtml(h.name)}</span>
+        <span class="dash-habit-square-status">${done ? '已打卡' : '未打卡'}</span>
+      </div>`
+    }
     if (dayCount <= HABIT_DOTS_MAX_DAYS) {
       let dots = ''
       const cur = new Date(rangeStart)
@@ -2972,7 +3075,7 @@ function renderDashHabits(tasks, start, end) {
     </div>`
   }).join('')
 
-  return `<div class="section-title-row"><span class="section-title">每日习惯打卡</span></div>${rows}`
+  return `<div class="section-title-row"><span class="section-title">每日习惯打卡</span></div>${singleDay ? `<div class="dash-habit-square-grid">${rows}</div>` : rows}`
 }
 
 function renderDashCompare(tasks, start, end) {
@@ -3403,6 +3506,7 @@ function renderDashboard() {
 
   document.getElementById('dash-overview').innerHTML = renderDashOverview(tasks, totalMins)
   document.getElementById('dash-categories').innerHTML = renderDashCategories(tasks, startDate, endDate)
+  renderDashPieLeaders()
   document.getElementById('dash-habits').innerHTML = renderDashHabits(allTasks, startDate, endDate)
   document.getElementById('dash-heatmap').innerHTML = renderDashHeatmap(tasks, startDate, endDate)
   document.getElementById('dash-trend').innerHTML = renderDashTrend(tasks, startDate, endDate)
@@ -4476,8 +4580,13 @@ function renderTaskPicker() {
   const q = (titleEl.value || '').toLowerCase().trim()
   // 分类胶囊行（浏览态/过滤态都保留——过滤时仍要选分类）；与表单当前分类一致的胶囊带 ✓
   const renderCatsRow = () => {
-    if (!_pickerCat || !_pickerData.some(c => c.cat === _pickerCat)) _pickerCat = _pickerData[0].cat
-    const formCat = (document.getElementById('f-cat')?.value || '').trim()
+    const catEl = document.getElementById('f-cat')
+    const formCat = (catEl?.value || '').trim()
+    if (!_pickerCat || !_pickerData.some(c => c.cat === _pickerCat)) {
+      const keepUncategorized = _recordMode === 'edit' && !formCat && _pickerData.some(c => c.cat === '未分类')
+      _pickerCat = keepUncategorized ? '未分类' : _pickerData[0].cat
+      if (_recordMode !== 'edit' && !formCat && catEl) catEl.value = _pickerCat === '未分类' ? '' : _pickerCat
+    }
     catsEl.innerHTML = _pickerData.map(c => {
       // 分类色直接填充胶囊背景（未分类用中性灰）；选中态 = 背景色加深（22% 透明度 → 全色）
       const color = c.cat === '未分类' ? '#8E8E93' : getCatColor(c.cat)
@@ -4609,9 +4718,7 @@ function renderTimeQuick() {
   set.innerHTML =
     (isStart ? `<button type="button" class="t-qs" data-kind="last" onclick="quickSetTime('last')">最后</button>` : '') +
     `<button type="button" class="t-qs" data-kind="now" onclick="quickSetTime('now')">现在</button>` +
-    (isStart
-      ? `<button type="button" class="t-qs" data-kind="reset" onclick="quickSetTime('reset')">复原</button>`
-      : `<button type="button" class="t-qs" data-kind="clear" onclick="quickSetTime('clear')">清空</button>`)
+    `<button type="button" class="t-qs" data-kind="reset" onclick="quickSetTime('reset')">${isStart ? '复原' : '还原'}</button>`
 }
 
 // 点胶囊：第一次选中端点；再点展开/收起该端点的原生日期/时刻输入（系统滚轮选择，不弹键盘）
@@ -4671,16 +4778,6 @@ function quickSetTime(kind) {
   } else if (kind === 'now') {
     if (_timeSel === 'start') { _recordMode === 'edit' ? setEditStartNow() : setFormStartNow() }
     else { _recordMode === 'edit' ? setEditEndNow() : setFormEndNow() }
-  } else if (kind === 'clear') {
-    if (_timeSel !== 'end') return
-    const ed = document.getElementById('f-end-date'), et = document.getElementById('f-end-time')
-    if (!ed || !et) return
-    ed.value = ''; et.value = ''
-    _endDateTouched = false
-    _setFormDim('f-end-date', true)
-    _setFormDim('f-end-time', true)
-    _setEndNowMaskForm(_recordMode === 'end')
-    updateSubmitBtn()
   }
   document.querySelectorAll('#f-tqset .t-qs').forEach(b => b.classList.toggle('sel', b.dataset.kind === kind))
   renderTimeRow()
