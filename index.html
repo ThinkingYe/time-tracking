@@ -2805,7 +2805,8 @@ function renderDashCategories(tasks, start, end) {
   let pieTagCursor = 0
   sorted.forEach(([cat, mins]) => {
     const span = mins / total * 100
-    const mid = (pieTagCursor + span / 2) / 100 * Math.PI * 2
+    // conic-gradient 的 0° 在正上方，换成坐标系的 0°（正右方）需减去 90°
+    const mid = (pieTagCursor + span / 2) / 100 * Math.PI * 2 - Math.PI / 2
     pieTagCursor += span
     pieTags.push({ cat, pct: Math.round(span), color: getCatColor(cat), side: Math.cos(mid) >= 0 ? 'right' : 'left', y: 110 + Math.sin(mid) * 88, mid })
   })
