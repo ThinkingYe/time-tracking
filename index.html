@@ -91,35 +91,6 @@
       font-size: 12px; color: #8e8e93; white-space: nowrap;
     }
 
-    /* 全局进行中任务计时胶囊 */
-    .active-capsule {
-      position: fixed;
-      top: calc(52px + env(safe-area-inset-top) + 6px);
-      right: 12px;
-      z-index: 150;
-      background: #F4A79D;
-      color: #fff;
-      border-radius: 20px;
-      padding: 6px 12px;
-      font-size: 13px;
-      font-weight: 600;
-      box-shadow: 0 4px 14px rgba(244,167,157,0.35);
-      cursor: grab;
-      display: none;
-      align-items: center;
-      gap: 6px;
-      max-width: calc(100vw - 120px);
-      -webkit-tap-highlight-color: transparent;
-      transition: transform 0.1s, opacity 0.15s;
-      touch-action: none;
-      user-select: none;
-    }
-    .active-capsule.show { display: flex; }
-    .active-capsule:active { cursor: grabbing; }
-    .active-capsule.dragging { transition: none; opacity: 0.95; }
-    .active-capsule-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .active-capsule-time { font-variant-numeric: tabular-nums; }
-
     /* 记录页右下悬浮按钮：上 ■ 结束、下 ＋ 开始（元素在 screen-record 内，随页面显隐） */
     .fab-stack {
       position: fixed;
@@ -139,6 +110,7 @@
     .fab:active { opacity: 0.8; transform: scale(0.94); }
     .fab-start { background: #9AB88F; box-shadow: 0 4px 14px rgba(154,184,143,0.45); font-size: 30px; line-height: 1; padding-bottom: 3px; }
     .fab-stop  { background: #F4A79D; box-shadow: 0 4px 14px rgba(244,167,157,0.45); font-size: 19px; line-height: 1; }
+    .fab-flash { background: #E9C46A; box-shadow: 0 4px 14px rgba(233,196,106,0.45); font-size: 24px; line-height: 1; }
 
 
     .screen { padding-top: calc(52px + env(safe-area-inset-top)); }
@@ -359,9 +331,6 @@
     /* 进行中行内实时时长（每秒由 updateTimer 刷新），与红色脉冲同色调 */
     .tf-active-dur { float: right; margin-left: 8px; color: #ff3b30; font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; padding-top: 1px; }
     .tl-empty-text { font-size: 13px; color: #9a9a90; text-align: center; }
-    .capsule-cat { display: inline-flex; align-items: flex-end; justify-content: center; width: 44px; height: 54px; flex-shrink: 0; margin: -18px 0 -4px -8px; pointer-events: none; overflow: visible; }
-    .capsule-cat-img { width: auto; height: 54px; transform-origin: bottom center; animation: capsuleCatSway 1.2s ease-in-out infinite; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1)); }
-    @keyframes capsuleCatSway { 0%, 100% { transform: scaleX(-1) rotate(-8deg); } 50% { transform: scaleX(-1) rotate(8deg); } }
 
     /* 复盘页：AI 对话 */
     #chat-messages { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
@@ -584,11 +553,11 @@
     .t-native { display: flex; gap: 8px; margin-bottom: 8px; }
     .t-native .field { margin-bottom: 0; }
     .t-quick-label { font-size: 11px; color: #aeaeb2; margin-bottom: 5px; }
-    .t-qrow { display: flex; gap: 6px; margin-bottom: 6px; }
-    .t-q { flex: 1; background: #f2f2f7; border: none; border-radius: 12px; padding: 7px 0; font-size: 13px; font-weight: 600; color: #3a3a3c; font-family: inherit; cursor: pointer; text-align: center; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
+    .t-qrow { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 6px; }
+    .t-q { background: #f2f2f7; border: none; border-radius: 12px; padding: 7px 0; font-size: 13px; font-weight: 600; color: #3a3a3c; font-family: inherit; cursor: pointer; text-align: center; font-variant-numeric: tabular-nums; -webkit-tap-highlight-color: transparent; }
     .t-q:active { background: #e5e5ea; }
-    .t-qset { display: flex; gap: 6px; margin-bottom: 10px; }
-    .t-qs { background: #f2f2f7; border: none; border-radius: 12px; padding: 6px 14px; font-size: 13px; font-weight: 600; color: #3a3a3c; font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .t-q.sel { background: #e3efff; color: #007aff; box-shadow: inset 0 0 0 1.5px #007aff; }
+    .t-qs { background: #f2f2f7; border: none; border-radius: 12px; padding: 6px 0; font-size: 13px; font-weight: 600; color: #3a3a3c; font-family: inherit; cursor: pointer; text-align: center; -webkit-tap-highlight-color: transparent; }
     .t-qs:active { background: #e5e5ea; }
     .t-qs.sel { background: #e3efff; color: #007aff; box-shadow: inset 0 0 0 1.5px #007aff; }
     .cal-tag {
@@ -1211,22 +1180,13 @@ function migrateLegacyData() {
 <!-- 全局顶部工具栏 -->
 <div class="tool-bar" id="tool-bar"></div>
 
-<!-- 全局进行中任务计时胶囊 -->
-<div id="active-capsule" class="active-capsule">
-  <span class="capsule-cat">
-    <img class="capsule-cat-img" src="data:image/png;base64,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" alt="cat">
-  </span>
-  <span id="active-capsule-title" class="active-capsule-title"></span>
-  <span id="active-capsule-time" class="active-capsule-time"></span>
-</div>
-
 <!-- ══ 记录页（合并时间记录 + 任务清单）══ -->
 <div id="screen-record" class="screen active">
   <div class="container">
 
     <!-- 新用户提示横幅（首次启动显示，点卡片跳设置页，点 × 关闭；老用户不显示） -->
     <div class="form-card" id="newbie-hint" onclick="clickNewbieHint()" style="display:none;cursor:pointer;align-items:center;justify-content:space-between;gap:8px">
-      <span style="font-size:14px;color:#1c1c1e">新用户？先到「设置」看使用教程、解锁 Pro</span>
+      <span style="font-size:14px;color:#1c1c1e">新用户？先到「设置」看使用教程</span>
       <span style="display:flex;align-items:center;gap:4px;flex-shrink:0">
         <span style="color:#c7c7cc;font-size:17px">›</span>
         <button onclick="event.stopPropagation();dismissNewbieHint()" style="background:none;border:none;color:#c7c7cc;font-size:17px;font-family:inherit;cursor:pointer;padding:4px">×</button>
@@ -1292,6 +1252,7 @@ function migrateLegacyData() {
     <!-- 右下悬浮按钮：上 ■ 结束当前任务（有进行中任务才显示）、下 ＋ 开始记录 -->
     <div class="fab-stack">
       <button class="fab fab-stop" id="fab-stop" style="display:none" onclick="fabStopTask()" title="结束当前任务">■</button>
+      <button class="fab fab-flash" id="fab-flash" onclick="openQuickFlash()" title="记录闪念">💡</button>
       <button class="fab fab-start" id="fab-start" onclick="openRecordModal('start')" title="开始记录">＋</button>
     </div>
 
@@ -1333,11 +1294,9 @@ function migrateLegacyData() {
       <div class="section" id="fogg-section">
         <div class="section-title-row" style="justify-content:flex-end;gap:14px">
           <button class="ai-reset-btn" id="fogg-ai-btn" onclick="aiDraftFogg()">🤖 AI 总结</button>
-          <button class="ai-reset-btn" onclick="saveFoggFromEditor()">💾 保存</button>
           <!-- 同步到备忘录：网页端功能已够用，暂时下线；恢复时取消注释（saveFoggToMemo 函数保留）
           <button class="ai-reset-btn" onclick="saveFoggToMemo()">📓 备忘录</button>
           -->
-          <button class="ai-reset-btn" onclick="clearFoggQuestions()">清除</button>
         </div>
         <div class="form-card">
           <div class="field" style="margin-bottom:12px">
@@ -1462,6 +1421,7 @@ function migrateLegacyData() {
         <span style="font-size:15px;color:#1c1c1e">📖 使用教程</span>
         <span style="color:#c7c7cc;font-size:17px">›</span>
       </div>
+      <!-- 进阶玩法（Pro 授权区）：暂时下线，先测试免费版转化；恢复时取消注释（renderProAuth 在容器缺失时自动跳过，无需改 JS）
       <div class="form-card" style="margin-top:12px">
         <p class="settings-card-title">✨ 进阶玩法 <span class="pro-badge">Pro</span> <span id="pro-status-badge" class="pro-status pro-status-off">未解锁</span></p>
         <div id="pro-intro">
@@ -1474,6 +1434,7 @@ function migrateLegacyData() {
         </div>
         <div id="pro-auth-body"></div>
       </div>
+      -->
     </div>
     <div class="section">
       <div class="form-card">
@@ -1481,14 +1442,13 @@ function migrateLegacyData() {
         <div class="cal-tags" id="cal-tags" style="padding:0 0 4px"></div>
         <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
           <button class="btn-chip" onclick="openCalAddModal()">＋ 添加分类</button>
+          <!-- 同步到苹果日历（Pro）：随进阶玩法区一起下线，测试免费版转化；恢复时取消注释（syncCatsToAppleCalendar 函数保留）
           <button class="btn-chip" onclick="syncCatsToAppleCalendar()">同步到苹果日历 <span class="pro-badge">Pro</span></button>
+          -->
           <button class="btn-chip" onclick="resetUserCalendars()">恢复默认</button>
         </div>
         <p class="info-tip" style="margin-top:8px;padding:0">
-          点名称可改名，点色块改颜色；相似任务再次记录时，系统会智能推荐分类。
-        </p>
-        <p class="info-tip" style="margin-top:4px;padding:0">
-          同步到苹果日历（Pro）：将本分类自动化同步到苹果日历（颜色受 iOS 限制无法自动化，需在日历 App 中手动修改）。
+          点名称可改名，点色块改颜色。
         </p>
       </div>
     </div>
@@ -1499,16 +1459,6 @@ function migrateLegacyData() {
         <p class="info-tip" style="margin-top:8px;padding:0">
           点习惯芯片即可编辑：自定义习惯可选「按时间分类 / 按任务名称」打卡；早睡/早起为内置习惯，可设置打卡时间与隐藏。
         </p>
-      </div>
-    </div>
-    <div class="section">
-      <div class="form-card">
-        <p class="settings-card-title">🖥 显示</p>
-        <div style="display:flex;align-items:center;justify-content:space-between">
-          <span style="font-size:15px;color:#1c1c1e">计时胶囊</span>
-          <label class="toggle" style="margin:0"><input type="checkbox" id="pref-capsule-toggle" onchange="toggleTimerCapsule(this.checked)"><span class="toggle-track"></span></label>
-        </div>
-        <p class="info-tip" style="margin-top:8px;padding:0">屏幕右上角悬浮的进行中任务计时（新用户默认关，老用户默认开，可在此随时切换）。关闭后，进行中的时长会直接显示在记录页时间流的红色任务行上；结束任务可从右下角 ■ 按钮或点任务行打开弹窗。</p>
       </div>
     </div>
     <div class="section">
@@ -1527,14 +1477,13 @@ function migrateLegacyData() {
         <hr class="settings-divider">
         <p class="settings-sub">数据迁移</p>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn-chip" onclick="openExportSelectModal()">📤 导出数据</button>
-          <button class="btn-chip" onclick="document.getElementById('migration-file').click()">📥 导入数据</button>
-          <button class="btn-chip" onclick="openCalExportModal()">📤 导出iOS日历 <span class="pro-badge">Pro</span></button>
-          <button class="btn-chip" onclick="openObsidianExportModal()">📓 导出Obsidian日记</button>
+          <button class="btn-chip" onclick="openExportSelectModal()">📤 导出JSON数据</button>
+          <button class="btn-chip" onclick="document.getElementById('migration-file').click()">📥 导入JSON数据</button>
+          <button class="btn-chip" onclick="openObsidianExportModal()">📓 导出MD文件</button>
         </div>
         <input type="file" id="migration-file" accept=".json,application/json" style="display:none" onchange="onMigrationFileSelected(this)">
         <div id="migration-file-name" style="margin-top:6px;font-size:13px;color:#6e6e73"></div>
-        <p class="info-tip" style="margin-top:8px;padding:0">导出可选择开始时间与模块，下载 JSON 备份；导入数据将与本地数据合并（重复记录以本地为准）；导出iOS日历为 Pro 功能，点在弹窗里选择时间段。</p>
+        <p class="info-tip" style="margin-top:8px;padding:0">导出可选择开始时间与模块，下载 JSON 备份；导入数据将与本地数据合并（重复记录以本地为准）。</p>
         <hr class="settings-divider">
         <p class="settings-sub">清除本地数据</p>
         <button class="btn-chip btn-chip-danger" onclick="clearAllLocalData()">选择清除本地数据</button>
@@ -1665,7 +1614,6 @@ function applySettings(s) {
   renderCalTags()
   renderHabitSettings()
   renderStorageStats()
-  renderCapsulePref()
 }
 
 // ── 每日习惯管理（设置页）──
@@ -1689,12 +1637,10 @@ function renderHabitSettings() {
       (isBuiltin ? '' : `<button class="habit-chip-del" onclick="deleteHabit(${i})" title="删除">×</button>`) +
     `</span>`
   }).join('') + `</div>`
-  // 添加 + 导出：与本模块按钮同一行的小胶囊（与「我的时间分类」按钮行一致）
   html += `<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px">
   <button class="btn-chip" onclick="openHabitModal(null)">＋ 添加习惯</button>
-  <button class="btn-chip" onclick="exportHabitsJSON()">📤 导出给小组件</button>
 </div>
-  <p class="info-tip" style="margin-top:6px;padding:0">导出 habits.json 可存两处：「iCloud 云盘 → Scriptable」供 Calendar_Pie 小组件追踪新习惯；Obsidian 仓库的 00PeriodicNotes 目录供打卡表读取习惯清单（含图标）。小组件脚本在上方「进阶玩法」区下载。</p>`
+  <p class="info-tip" style="margin-top:6px;padding:0">当记录的时间数据中，「时间分类」或「任务名称」（2选1）包含习惯名称，当日即打卡。</p>`
   el.innerHTML = html
 }
 
@@ -1733,8 +1679,6 @@ function openHabitModal(idx) {
     document.getElementById('habit-name').value = h ? h.name : ''
     setHabitScope(h && h.matchBy === 'title' ? 'title' : 'category')
   }
-  // 图标：内置习惯未存过图标时给默认 emoji
-  document.getElementById('habit-icon').value = h?.icon || (isBuiltin ? (h.type === 'bedtime' ? '🌙' : '⏰') : '')
   document.getElementById('habit-modal').classList.add('open')
   // 添加模式下直接聚焦名称输入框，少点一下（等弹窗动画起来再聚焦）
   if (!h) setTimeout(() => document.getElementById('habit-name')?.focus(), 150)
@@ -1749,7 +1693,6 @@ function closeHabitModal() {
 }
 function saveHabit() {
   const habits = [...(loadSettings().habits || DEFAULTS.habits)]
-  const icon = (document.getElementById('habit-icon').value || '').trim()
   // 内置习惯：保存阈值 + 显示开关（名称与判定逻辑固定）
   if (_editingHabitIdx != null) {
     const old = habits[_editingHabitIdx]
@@ -1758,7 +1701,6 @@ function saveHabit() {
         ...old,
         by: parseInt(document.getElementById('habit-builtin-threshold').value, 10),
         hidden: !document.getElementById('habit-builtin-visible').checked,
-        icon: icon || old.icon,
       }
       saveHabits(habits)
       closeHabitModal()
@@ -1770,7 +1712,8 @@ function saveHabit() {
   if (!name) { toast('请填写习惯名称'); return }
   if (habits.some((h, i) => h.name === name && i !== _editingHabitIdx)) { toast('已存在同名习惯'); return }
   const entry = { name, type: 'calendar', keywords: [name], matchBy: _habitScope }
-  if (icon) entry.icon = icon
+  // 图标字段已下线：编辑时透传旧值，不清空历史数据
+  if (_editingHabitIdx != null && habits[_editingHabitIdx]?.icon) entry.icon = habits[_editingHabitIdx].icon
   if (_editingHabitIdx != null) habits[_editingHabitIdx] = entry
   else habits.push(entry)
   saveHabits(habits)
@@ -2679,17 +2622,35 @@ function fmtLocalDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 
-function renderDashOverview(tasks, totalMins) {
+function renderDashOverview(tasks, totalMins, start, end) {
   const totalH = (totalMins / 60).toFixed(1)
-  const activeDays = new Set(tasks.map(t => t.start ? fmtLocalDate(new Date(t.start)) : '').filter(Boolean)).size
+  // 活跃天数按跨天硬切口径：分钟分摊到自然日（睡眠整段归起床日），只数所选窗口内真实分到分钟的天数
+  const sKey = start ? fmtDateOnly(new Date(start)) : null
+  const eKey = end ? fmtDateOnly(new Date(end)) : null
+  const daySet = new Set()
+  tasks.forEach(t => {
+    const byDay = distributeTaskMinsByDay(t)
+    for (const [k, mins] of Object.entries(byDay)) {
+      if (mins <= 0) continue
+      if (sKey && k < sKey) continue
+      if (eKey && k > eKey) continue
+      daySet.add(k)
+    }
+  })
+  const activeDays = daySet.size
   const avgH = activeDays ? (totalMins / 60 / activeDays).toFixed(1) : '0.0'
 
+  // 区间标签跟随所选时间段（跨午夜任务不再把「今天」顶成两天）；「全部」时回落到数据实际跨度
+  const fmtMd = d => `${d.getMonth() + 1}/${d.getDate()}`
   let rangeStr = '-'
-  if (tasks.length) {
+  if (start && end) {
+    const s = fmtMd(new Date(start)), e = fmtMd(new Date(end))
+    rangeStr = s === e ? s : `${s} ~ ${e}`
+  } else if (tasks.length) {
     const starts = tasks.map(t => t.start).filter(Boolean).sort()
     const earliest = new Date(starts[0])
     const latest = new Date(starts[starts.length - 1])
-    rangeStr = `${earliest.getMonth() + 1}/${earliest.getDate()} ~ ${latest.getMonth() + 1}/${latest.getDate()}`
+    rangeStr = `${fmtMd(earliest)} ~ ${fmtMd(latest)}`
   }
 
   // 一行摘要条：不占卡片网格，分类统计才是首屏主角
@@ -3505,7 +3466,7 @@ function renderDashboard() {
     }
   }
 
-  document.getElementById('dash-overview').innerHTML = renderDashOverview(tasks, totalMins)
+  document.getElementById('dash-overview').innerHTML = renderDashOverview(tasks, totalMins, startDate, endDate)
   document.getElementById('dash-categories').innerHTML = renderDashCategories(tasks, startDate, endDate)
   renderDashPieLeaders()
   document.getElementById('dash-habits').innerHTML = renderDashHabits(allTasks, startDate, endDate)
@@ -4100,93 +4061,14 @@ function updateTimer() {
     const tel = document.getElementById('tf-dur-' + active.id)
     if (tel) tel.textContent = text
   })
-  renderActiveCapsule()
-}
-
-// 设置页「显示 → 计时胶囊」开关：关闭后胶囊不再出现（时间流进行中行内有实时时长兜底）
-// 首次读取时定型并持久化：当时有历史记录（老用户）默认开，无记录（新用户）默认关；
-// 定型后固定不变，用户手动开关以手动为准
-function isTimerCapsuleHidden() {
-  const s = loadSettings()
-  if (s.hideTimerCapsule !== undefined) return !!s.hideTimerCapsule
-  const def = loadDoneTasks().length === 0
-  s.hideTimerCapsule = def
-  try { localStorage.setItem('app_settings', JSON.stringify(s)) } catch {}
-  return def
-}
-function toggleTimerCapsule(show) {
-  let cur = {}
-  try { cur = JSON.parse(localStorage.getItem('app_settings') || '{}') } catch {}
-  cur.hideTimerCapsule = !show
-  try { localStorage.setItem('app_settings', JSON.stringify(cur)) } catch {}
-  renderActiveCapsule()
-}
-function renderCapsulePref() {
-  const el = document.getElementById('pref-capsule-toggle')
-  if (el) el.checked = !isTimerCapsuleHidden()
-}
-
-function renderActiveCapsule() {
-  const tasks = loadActiveTasks()
-  const cap = document.getElementById('active-capsule')
-  const titleEl = document.getElementById('active-capsule-title')
-  const timeEl = document.getElementById('active-capsule-time')
-  if (!cap || !titleEl || !timeEl) return
-  if (!tasks.length || isTimerCapsuleHidden()) { cap.classList.remove('show'); return }
-  const t = tasks[0]
-  cap.classList.add('show')
-  titleEl.textContent = t.title || '未命名任务'
-  timeEl.textContent = fmtTick(Date.now() - new Date(t.startedAt).getTime())
-}
-
-const _capsuleDrag = { dragging:false, moved:false, startX:0, startY:0, dx:0, dy:0 }
-function parseCapsuleTransform(t) {
-  try {
-    const Matrix = window.WebKitCSSMatrix || window.DOMMatrix
-    const m = new Matrix(t)
-    return { x:m.m41, y:m.m42 }
-  } catch {}
-  return { x:0, y:0 }
-}
-function initCapsuleDrag() {
-  const cap = document.getElementById('active-capsule')
-  if (!cap) return
-  cap.addEventListener('pointerdown', e => {
-    cap.classList.add('dragging')
-    _capsuleDrag.dragging = true
-    _capsuleDrag.moved = false
-    _capsuleDrag.startX = e.clientX
-    _capsuleDrag.startY = e.clientY
-    const pos = parseCapsuleTransform(getComputedStyle(cap).transform)
-    _capsuleDrag.dx = pos.x
-    _capsuleDrag.dy = pos.y
-    cap.setPointerCapture(e.pointerId)
-  })
-  cap.addEventListener('pointermove', e => {
-    if (!_capsuleDrag.dragging) return
-    const mx = e.clientX - _capsuleDrag.startX
-    const my = e.clientY - _capsuleDrag.startY
-    if (Math.abs(mx) > 12 || Math.abs(my) > 12) _capsuleDrag.moved = true
-    cap.style.transform = `translate(${_capsuleDrag.dx + mx}px, ${_capsuleDrag.dy + my}px)`
-  })
-  cap.addEventListener('pointerup', e => {
-    cap.classList.remove('dragging')
-    _capsuleDrag.dragging = false
-    cap.releasePointerCapture(e.pointerId)
-    if (_capsuleDrag.moved) {
-      e.preventDefault()
-      setTimeout(() => { _capsuleDrag.moved = false }, 60)
-    }
-  })
-  cap.addEventListener('click', e => {
-    if (_capsuleDrag.moved) { e.stopPropagation(); e.preventDefault(); _capsuleDrag.moved = false; return }
-    openActiveTaskModal()
-  })
 }
 
 function openActiveTaskModal() {
   const tasks = loadActiveTasks()
   if (!tasks.length) return
+  // 单个进行中任务：直接用统一记录弹窗的结束模式（胶囊时间行/微调/快捷设置与开始、补录一致）；
+  // 多个进行中任务才回退到旧的多卡弹窗
+  if (tasks.length === 1) { openRecordModal('end', { taskId: tasks[0].id }); return }
   const body = document.getElementById('active-task-body')
   if (!body) return
   body.innerHTML = tasks.map(t => renderActiveTaskFormCard(t)).join('')
@@ -4426,8 +4308,6 @@ function renderStartSection() {
 
   if (startEl) startEl.innerHTML = renderStartFormHTML()
 
-  // 进行中任务统一收进全局胶囊 + 弹窗
-  renderActiveCapsule()
   if (tasks.length) startTimer(); else stopTimer()
   applySectionStates()
 }
@@ -4486,7 +4366,6 @@ function renderRecordFormBody(mode, data) {
     </div>
     <div class="t-quick-label" id="f-tqlabel"></div>
     <div class="t-qrow" id="f-tqrow"></div>
-    <div class="t-qset" id="f-tqset"></div>
     <div class="field">
       <textarea id="f-notes" placeholder="备注（选填）"></textarea>
     </div>`
@@ -4503,8 +4382,9 @@ function renderRecordFormBody(mode, data) {
     html += `
       <!-- 计划模块已隐藏，计划选择器暂不渲染 -->
       <!-- <div id="f-plan-picker" style="margin-top:8px"></div> -->
-      <div style="margin-top:8px">
-        <button class="btn-primary" id="f-end-btn" onclick="submitRecordForm('end')">⏹ 结束任务</button>
+      <div class="modal-actions" style="margin-top:8px">
+        <button class="btn-cancel" onclick="cancelActiveTask(_recordTaskId)">放弃</button>
+        <button class="btn-primary" id="f-end-btn" style="flex:1" onclick="submitRecordForm('end')">⏹ 结束任务</button>
       </div>`
   } else {
     // ── 开始 / 补录模式：紧凑时间行 + 双按钮 ──
@@ -4651,13 +4531,12 @@ function pickTaskChip(title, cat) {
 }
 
 // ══════════════════════════════════════════════════════════
-// 紧凑时间行：开始→结束胶囊 + 快捷微调（±30/±15/±5 分钟）+ 快捷设置（最后/现在/复原）
+// 紧凑时间行：开始→结束胶囊 + 快捷微调（±30/±15/±5 分钟）+ 快捷设置（最后/开始/现在）
 // 胶囊是原生 date/time input 的可视层（提交逻辑仍读 input 值）；
 // Now 态（start 模式的开始 / end 模式的结束）在微调或展开前先实体化为当前时刻
 // ══════════════════════════════════════════════════════════
 let _timeSel = 'start'   // 当前选中端点：start | end
-let _timeSnap = null     // 打开弹窗时的时间快照，「复原」用
-const TIME_QUICK_DELTAS = [-30, -15, -5, 5, 15, 30]
+const TIME_QUICK_DELTAS = { neg: [-60, -30, -15, -10, -5], pos: [60, 30, 15, 10, 5] }  // 上排减、下排加，同列同值（±60 显示为 ±1h）
 const TIME_DOW = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
 const _isStartBackfill = () => _recordMode === 'start' || _recordMode === 'backfill'
@@ -4710,26 +4589,51 @@ function renderTimeRow() {
 function renderTimeQuick() {
   const label = document.getElementById('f-tqlabel')
   const row = document.getElementById('f-tqrow')
-  const set = document.getElementById('f-tqset')
-  if (!label || !row || !set) return
+  if (!label || !row) return
+  // 6 列网格两行：上排 -1h/-30/-15/-10/-5 + 基准按钮（最后|开始），下排 +1h/+30/+15/+10/+5 + 现在
   const isStart = _timeSel === 'start'
   label.textContent = isStart ? '微调开始时间（分钟）' : '微调结束时间（分钟）'
-  row.innerHTML = TIME_QUICK_DELTAS.map(m =>
-    `<button type="button" class="t-q" onclick="adjustTimeEndpoint(${m})">${m > 0 ? '+' : ''}${m}</button>`).join('')
-  set.innerHTML =
-    (isStart ? `<button type="button" class="t-qs" data-kind="last" onclick="quickSetTime('last')">最后</button>` : '') +
-    `<button type="button" class="t-qs" data-kind="now" onclick="quickSetTime('now')">现在</button>` +
-    `<button type="button" class="t-qs" data-kind="reset" onclick="quickSetTime('reset')">${isStart ? '复原' : '还原'}</button>`
+  const mkBtn = m => `<button type="button" class="t-q" onclick="adjustTimeEndpoint(${m}, this)">${m === 60 ? '+1h' : m === -60 ? '-1h' : (m > 0 ? '+' : '') + m}</button>`
+  const qsBase = isStart
+    ? `<button type="button" class="t-qs" data-kind="last" onclick="quickSetTime('last')">最后</button>`
+    : `<button type="button" class="t-qs" data-kind="start" onclick="quickSetDuration(0)">开始</button>`
+  const qsNow = `<button type="button" class="t-qs" data-kind="now" onclick="quickSetTime('now')">现在</button>`
+  row.innerHTML =
+    TIME_QUICK_DELTAS.neg.map(mkBtn).join('') + qsBase +
+    TIME_QUICK_DELTAS.pos.map(mkBtn).join('') + qsNow
 }
 
-// 点胶囊：第一次选中端点；再点展开/收起该端点的原生日期/时刻输入（系统滚轮选择，不弹键盘）
+// 结束端点「开始」按钮：结束时间对齐开始时间（开始为「现在」态时以当前时刻为底），再配微调排出任意时长
+function quickSetDuration(mins) {
+  let base
+  const sd = document.getElementById('f-start-date').value
+  const st = document.getElementById('f-start-time').value
+  if (sd && st) base = new Date(`${sd}T${st}`)
+  else if (_startIsNow()) base = new Date()
+  if (!base || isNaN(base)) { toast('请先填开始时间'); return }
+  const d = new Date(base.getTime() + mins * 60000)
+  document.getElementById('f-end-date').value = fmtDateOnly(d)
+  document.getElementById('f-end-time').value = fmtTime(d)
+  _onFormEndTimeChange()
+  updateSubmitBtn()
+  renderTimeRow()
+  // 与「现在」同一套选中态：互斥高亮，点「现在」自动熄灭
+  document.querySelectorAll('#f-tqrow .t-qs').forEach(b => b.classList.toggle('sel', b.dataset.kind === 'start'))
+  document.querySelectorAll('#f-tqrow .t-q').forEach(b => b.classList.remove('sel'))
+}
+
+// 点胶囊：选中端点并直接展开该端点的原生日期/时刻输入（系统滚轮选择，不弹键盘）；
+// 同时收起另一端点的滚轮，避免对着开始时间的滚轮误调结束时间。再点当前端点收起
 function tapTimeCap(ep) {
   const native = document.getElementById(ep === 'start' ? 'f-native-start' : 'f-native-end')
+  const other  = document.getElementById(ep === 'start' ? 'f-native-end' : 'f-native-start')
   if (_timeSel !== ep) {
     _timeSel = ep
     renderTimeQuick()
     if (ep === 'end') quickSetTime('now')
     else renderTimeRow()
+    if (other) other.style.display = 'none'
+    if (native) { materializeEndpoint(ep); native.style.display = 'flex' }
     return
   }
   if (!native) return
@@ -4744,7 +4648,7 @@ function materializeEndpoint(ep) {
   if (ep === 'end' && _endIsNow()) setFormEndNow()
 }
 
-function adjustTimeEndpoint(mins) {
+function adjustTimeEndpoint(mins, btn) {
   materializeEndpoint(_timeSel)
   const dEl = document.getElementById(_timeSel === 'start' ? 'f-start-date' : 'f-end-date')
   const tEl = document.getElementById(_timeSel === 'start' ? 'f-start-time' : 'f-end-time')
@@ -4768,11 +4672,15 @@ function adjustTimeEndpoint(mins) {
   else _onFormEndTimeChange()
   updateSubmitBtn()
   renderTimeRow()
+  // 微调按钮选中态：高亮留在刚点的按钮上，直到点其他微调或快捷设置按钮
+  if (btn) {
+    document.querySelectorAll('#f-tqrow .t-q').forEach(b => b.classList.toggle('sel', b === btn))
+    document.querySelectorAll('#f-tqrow .t-qs').forEach(b => b.classList.remove('sel'))
+  }
 }
 
 function quickSetTime(kind) {
-  if (kind === 'reset') restoreTimeSnap()
-  else if (kind === 'last') {
+  if (kind === 'last') {
     if (_timeSel !== 'start') return
     if (_recordMode === 'edit') setEditStartLast()
     else setFormStartLast()
@@ -4780,38 +4688,8 @@ function quickSetTime(kind) {
     if (_timeSel === 'start') { _recordMode === 'edit' ? setEditStartNow() : setFormStartNow() }
     else { _recordMode === 'edit' ? setEditEndNow() : setFormEndNow() }
   }
-  document.querySelectorAll('#f-tqset .t-qs').forEach(b => b.classList.toggle('sel', b.dataset.kind === kind))
-  renderTimeRow()
-}
-
-function takeTimeSnap() {
-  _timeSnap = {
-    sd: document.getElementById('f-start-date')?.value || '',
-    st: document.getElementById('f-start-time')?.value || '',
-    ed: document.getElementById('f-end-date')?.value || '',
-    et: document.getElementById('f-end-time')?.value || '',
-    startMode: _startMode,
-    endTouched: _endDateTouched,
-  }
-}
-
-function restoreTimeSnap() {
-  if (!_timeSnap) return
-  const sd = document.getElementById('f-start-date'), st = document.getElementById('f-start-time')
-  const ed = document.getElementById('f-end-date'),   et = document.getElementById('f-end-time')
-  if (!sd || !st || !ed || !et) return
-  sd.value = _timeSnap.sd; st.value = _timeSnap.st
-  ed.value = _timeSnap.ed; et.value = _timeSnap.et
-  _startMode = _timeSnap.startMode
-  _endDateTouched = _timeSnap.endTouched
-  if (_isStartBackfill()) {
-    const now = _startMode === 'now'
-    _setFormDim('f-start-date', now)
-    _setFormDim('f-start-time', now)
-    _setStartNowMask(now)
-  }
-  if (_recordMode === 'end') _setEndNowMaskForm(!_timeSnap.et)
-  updateSubmitBtn()
+  document.querySelectorAll('#f-tqrow .t-qs').forEach(b => b.classList.toggle('sel', b.dataset.kind === kind))
+  document.querySelectorAll('#f-tqrow .t-q').forEach(b => b.classList.remove('sel'))
   renderTimeRow()
 }
 
@@ -4922,7 +4800,6 @@ function openRecordModal(mode, data) {
   _timeSel = mode === 'end' ? 'end' : 'start'
   document.getElementById('f-native-start').style.display = 'none'
   document.getElementById('f-native-end').style.display = 'none'
-  takeTimeSnap()
   renderTimeQuick()
   renderTimeRow()
   if (_timeSel === 'end') quickSetTime('now')
@@ -5031,6 +4908,7 @@ function cancelActiveTask(taskId) {
   delete _selectedEndPlanId[taskId]
   if (!loadActiveTasks().length) stopTimer()
   closeActiveTaskModal()
+  closeRecordModal()
   renderStartSection()
   renderTimeline()
 }
@@ -5224,7 +5102,6 @@ function submitRecordForm(mode) {
     closeRecordModal()
     renderStartSection()
     jumpTimelineTo(fmtDateOnly(new Date(startISO)))
-    document.getElementById('active-capsule')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
     // 联动 iPhone 秒表：所有开始都发（含 Last/manual 过去时间——秒表时长虽对不上，
     // 用户要的是灵动岛上「有任务进行中」的提醒）
     launchStartShortcut(title, startISO)
@@ -5439,18 +5316,40 @@ function onFlashSearchInput(value) {
   renderFlashNotes()
 }
 
-function doFlash() {
-  const text = document.getElementById('flash-text').value.trim()
-  if (!text) { toast('请输入内容'); return }
-  document.getElementById('flash-text').value = ''
+// 闪念写入：闪念页输入框与记录页 💡 快捷弹窗共用的唯一入口
+function addFlashNote(text) {
   const time = nowISO()
   const note_id = `flash-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
-  const entry = { note_id, text, time }
-  saveFlashNotes([entry, ...loadFlashNotes()])
+  saveFlashNotes([{ note_id, text, time }, ...loadFlashNotes()])
   // 闪念仅保存在浏览器本地，不再调用快捷指令（快捷指令分支保留，供后续需要时恢复）
   // writeEventToCalendar({ action: 'flash', title: text })
   renderFlashNotes()
+}
+
+function doFlash() {
+  const el = document.getElementById('flash-text')
+  const text = el.value.trim()
+  if (!text) { toast('请输入内容'); return }
+  el.value = ''
+  addFlashNote(text)
   setTimeout(() => document.getElementById('flash-text')?.focus(), 100)
+}
+
+// ── 快捷闪念弹窗（记录页 💡 悬浮按钮）──
+function openQuickFlash() {
+  document.getElementById('quick-flash-modal').classList.add('open')
+  const ta = document.getElementById('quick-flash-text')
+  ta.value = ''
+  // focus 必须留在点按手势的调用栈里，iOS 才会直接升起键盘
+  ta.focus()
+}
+function closeQuickFlash() { document.getElementById('quick-flash-modal')?.classList.remove('open') }
+function saveQuickFlash() {
+  const text = document.getElementById('quick-flash-text').value.trim()
+  if (!text) { toast('请输入内容'); return }
+  addFlashNote(text)
+  closeQuickFlash()
+  toast('已记录')
 }
 async function deleteFlashNote(id, isD1) {
   if (isD1) {
@@ -5628,9 +5527,12 @@ function renderFoggHistory() {
     const data = map[d]
     const first = FOGG_QUESTIONS.map(q => (data[q.key] || '').trim()).find(t => t) || ''
     const preview = first.length > 30 ? first.slice(0, 30) + '…' : first
-    return `<div class="form-card chat-session-item" onclick="openFoggCard('${d}')">
-      <div style="font-size:12px;color:#8e8e93">${escHtml(d)} ${weekdays[dt.getDay()]}</div>
-      <div style="font-size:13px;color:#3c3c43;margin-top:4px">${escHtml(preview)}</div>
+    return `<div class="form-card chat-session-item" onclick="openFoggCard('${d}')" style="display:flex;align-items:center;gap:8px">
+      <div style="min-width:0;flex:1">
+        <div style="font-size:12px;color:#8e8e93">${escHtml(d)} ${weekdays[dt.getDay()]}</div>
+        <div style="font-size:13px;color:#3c3c43;margin-top:4px">${escHtml(preview)}</div>
+      </div>
+      <button class="habit-chip-del" style="flex-shrink:0" onclick="event.stopPropagation();deleteFoggEntry('${d}')" title="删除该日复盘">×</button>
     </div>`
   }).join('')
 }
@@ -5829,13 +5731,7 @@ function saveFoggFile(date, data) {
   setTimeout(() => URL.revokeObjectURL(a.href), 10000)
   toast('已生成文件，请在下载目录查看')
 }
-// 编辑器入口：直接保存当前输入框内容（oninput 已自动落盘，这里再兜底一次）
-function saveFoggFromEditor() {
-  const date = getFoggDateKey()
-  saveFoggQuestions()
-  saveFoggFile(date, loadAllFoggAnswers()[date] || {})
-}
-// 复盘卡入口：保存卡片正在查看的那一天
+// 复盘卡入口：导出卡片正在查看的那一天
 function saveFoggCardFile() {
   if (!_foggCardDate) return
   saveFoggFile(_foggCardDate, loadAllFoggAnswers()[_foggCardDate] || {})
@@ -5847,6 +5743,7 @@ function fmtDate(d) {
 }
 
 function initAI() {
+  applyReviewGating()
   switchReviewTab(currentReviewTab)
   renderChatAuth()
   renderChatMessages()
@@ -5858,21 +5755,21 @@ function initAI() {
   renderFoggHistory()
 }
 
-function clearFoggQuestions() {
-  const date = getFoggDateKey()
-  if (!confirm(`确定清除 ${date || '当天'} 的福格三问？清除后不可恢复。`)) return
-  FOGG_QUESTIONS.forEach(q => {
-    const el = document.getElementById('fogg-' + q.key)
-    if (el) el.value = ''
-  })
-  autosizeAllFogg()
-  if (date) {
-    const map = loadAllFoggAnswers()
-    delete map[date]
-    saveAllFoggAnswers(map)
-  }
+function deleteFoggEntry(date) {
+  if (!confirm(`确定删除 ${date} 的复盘记录？删除后不可恢复。`)) return
+  const map = loadAllFoggAnswers()
+  delete map[date]
+  saveAllFoggAnswers(map)
   renderFoggHistory()
-  toast('福格三问已清除')
+  // 编辑器正停在被删日期时同步清空输入框，避免 oninput 又把内容写回去
+  if (getFoggDateKey() === date) {
+    FOGG_QUESTIONS.forEach(q => {
+      const el = document.getElementById('fogg-' + q.key)
+      if (el) el.value = ''
+    })
+    autosizeAllFogg()
+  }
+  toast('已删除')
 }
 
 function formatFoggMemoContent(date) {
@@ -6004,7 +5901,18 @@ let _chatSending = false
 
 const _sleep = ms => new Promise(r => setTimeout(r, ms))
 
+// 复盘页 Pro 门控：非 Pro 只保留福格三问——隐藏分段头与「AI 总结」按钮，并强制落在福格面板
+function applyReviewGating() {
+  const pro = isProVerified()
+  const tabs = document.querySelector('.review-tabs')
+  if (tabs) tabs.style.display = pro ? '' : 'none'
+  const aiBtn = document.getElementById('fogg-ai-btn')
+  if (aiBtn) aiBtn.style.display = pro ? '' : 'none'
+  if (!pro && currentReviewTab === 'chat') switchReviewTab('fogg')
+}
+
 function switchReviewTab(tab) {
+  if (tab === 'chat' && !isProVerified()) tab = 'fogg'
   currentReviewTab = tab
   document.getElementById('review-pane-chat').style.display = tab === 'chat' ? '' : 'none'
   document.getElementById('review-pane-fogg').style.display = tab === 'fogg' ? '' : 'none'
@@ -6039,6 +5947,7 @@ async function saveChatOrderId() {
   }
   renderProAuth()
   renderChatAuth()
+  applyReviewGating()
   toast('已解锁 Pro，开始对话吧')
 }
 
@@ -7023,11 +6932,14 @@ function renderCatChips(chipsId, inputId) {
   const el = document.getElementById(chipsId)
   if (!el) return
   const cats = loadUserCalendars()
-  el.innerHTML = cats.map(c =>
-    `<button type="button" class="cat-chip" onclick="document.getElementById('${inputId}').value='${c.replace(/\\/g,'\\\\').replace(/'/g,'\\\'')}';document.getElementById('${inputId}').blur()">` +
+  // 按「时间分类」打卡的习惯，把维护的 emoji 图标显示在对应分类胶囊上（匹配规则与打卡判定一致）
+  const catHabits = (loadSettings().habits || DEFAULTS.habits).filter(h => h.type === 'calendar' && h.matchBy !== 'title' && h.icon)
+  el.innerHTML = cats.map(c => {
+    const habit = catHabits.find(h => ((h.keywords && h.keywords.length) ? h.keywords : [h.name]).some(k => c.includes(k)))
+    return `<button type="button" class="cat-chip" onclick="document.getElementById('${inputId}').value='${c.replace(/\\/g,'\\\\').replace(/'/g,'\\\'')}';document.getElementById('${inputId}').blur()">` +
     `<span class="cat-chip-dot" style="background:${getCatColor(c)}"></span>` +
-    escHtml(c) + `</button>`
-  ).join('')
+    (habit ? escHtml(habit.icon) + ' ' : '') + escHtml(c) + `</button>`
+  }).join('')
 }
 function onTitleInput(titleId, catId) {
   const title = (document.getElementById(titleId)?.value || '').trim()
@@ -7147,6 +7059,7 @@ function clearProAuth() {
   delete s.proCheckedAt
   try { localStorage.setItem('app_settings', JSON.stringify(s)) } catch {}
   renderProAuth()
+  applyReviewGating()
 }
 // shortcuts 写日历的 Pro 门槛：ok 放行；none 静默（免费用户每次保存不打扰）；
 // expired 清空授权并提示一次（清空后变 none，后续保存不再重复提示）
@@ -7189,6 +7102,7 @@ async function recheckProIfStale() {
     }
     try { localStorage.setItem('app_settings', JSON.stringify(s2)) } catch {}
     renderProAuth()
+    applyReviewGating()
     return true
   }
   clearProAuth()
@@ -7298,6 +7212,7 @@ async function submitProAuth() {
     return
   }
   renderProAuth()
+  applyReviewGating()
   toast(r.plan === 'trial' ? '已解锁 Pro 试用，有效期 7 天' : '已解锁 Pro')
 }
 // Scriptable 小组件：一键导出 Calendar_Pie 脚本 + habits.json
@@ -7362,7 +7277,6 @@ function openGuideDoc() {
 
 // 启动：只做老数据迁移（补 task_id），不再连接 D1；支持 ?view=xxx 深链，默认进记录页
 migrateLegacyData()
-initCapsuleDrag()
 const params = new URLSearchParams(location.search)
 const view = params.get('view')
 if (['record', 'ai', 'flash', 'dashboard', 'settings'].includes(view)) go(view)
@@ -7460,7 +7374,6 @@ else renderRecord()
     </div>
     <!-- 自定义习惯字段 -->
     <div class="field" id="habit-name-field"><label>习惯名称</label><input type="text" id="habit-name" placeholder="如：内观"></div>
-    <div class="field" id="habit-icon-field" style="margin-top:10px"><label>图标 emoji（用于 Obsidian 打卡表，可选）</label><input type="text" id="habit-icon" placeholder="如：🧘"></div>
     <div class="field" id="habit-scope-field" style="margin-top:10px">
       <label>匹配方式（按哪个字段判定打卡）</label>
       <div class="habit-radio-group" id="habit-scope-toggle">
@@ -7550,7 +7463,7 @@ else renderRecord()
 <div id="export-select-modal" class="modal-overlay" onclick="if(event.target===this)closeExportSelectModal()">
   <div class="modal-card" onclick="event.stopPropagation()">
     <div class="modal-header">
-      <span class="modal-title">导出数据</span>
+      <span class="modal-title">导出JSON数据</span>
       <button class="modal-close" onclick="closeExportSelectModal()">×</button>
     </div>
     <p style="font-size:14px;color:#6e6e73;margin-bottom:12px">选择开始时间与要导出的模块；开始时间留空则导出全部。</p>
@@ -7575,7 +7488,7 @@ else renderRecord()
   </div>
 </div>
 
-<!-- 导出苹果日历Data 弹窗（Pro）：时间段选择收进弹窗，与导出/导入数据同一交互范式 -->
+<!-- 导出苹果日历Data 弹窗（Pro）：入口按钮已随免费版测试下线，弹窗一并注释；恢复时取消注释（openCalExportModal / exportAppleCalendarData 函数保留）
 <div id="cal-export-modal" class="modal-overlay" onclick="if(event.target===this)closeCalExportModal()">
   <div class="modal-card" onclick="event.stopPropagation()">
     <div class="modal-header">
@@ -7597,6 +7510,7 @@ else renderRecord()
     </div>
   </div>
 </div>
+-->
 
 <!-- 导出 Obsidian 日记：选区间 → 日期多选 → 逐日生成 YYYYMMDD.md（frontmatter 含习惯打卡结果，正文含时间统计+福格三问+时间流） -->
 <div id="obsidian-export-modal" class="modal-overlay" onclick="if(event.target===this)closeObsidianExportModal()">
@@ -7662,8 +7576,25 @@ else renderRecord()
     <div style="display:flex;gap:8px;margin-top:16px;align-items:center">
       <button class="btn-secondary fogg-card-nav" id="fogg-card-prev" onclick="stepFoggCard(-1)" title="上一篇">‹</button>
       <button class="btn-secondary" style="flex:1" onclick="editFoggCard()">✏️ 编辑</button>
-      <button class="btn-primary" style="flex:1" onclick="saveFoggCardFile()">💾 保存</button>
+      <button class="btn-primary" style="flex:1" onclick="saveFoggCardFile()">📤 导出</button>
       <button class="btn-secondary fogg-card-nav" id="fogg-card-next" onclick="stepFoggCard(1)" title="下一篇">›</button>
+    </div>
+  </div>
+</div>
+
+<!-- 快捷闪念弹窗：记录页右下 💡 唤起，与闪念页共用 flash_notes 存储 -->
+<div id="quick-flash-modal" class="modal-overlay" onclick="if(event.target===this)closeQuickFlash()">
+  <div class="modal-card" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <span class="modal-title">💡 记录闪念</span>
+      <button class="modal-close" onclick="closeQuickFlash()">×</button>
+    </div>
+    <div class="field">
+      <textarea id="quick-flash-text" rows="16" placeholder="随便写点什么…"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeQuickFlash()">取消</button>
+      <button class="btn-primary" onclick="saveQuickFlash()">保存</button>
     </div>
   </div>
 </div>
