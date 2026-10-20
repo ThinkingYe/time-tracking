@@ -534,6 +534,7 @@
     .pk-task:active { background: #e5e5ea; }
     .pk-task.sel { background: #e3efff; color: #007aff; font-weight: 600; box-shadow: inset 0 0 0 1.5px #007aff; }
     .pk-task.sel .pk-x { margin-left: 6px; opacity: 0.55; font-weight: 400; }
+    .pk-task .pk-del { margin-left: 6px; opacity: 0.35; font-weight: 400; }
     .pk-empty { font-size: 12px; color: #aeaeb2; padding: 6px 2px; }
 
     /* ── 记录弹窗：紧凑时间行（开始→结束一行的胶囊 + 快捷微调）── */
@@ -1438,6 +1439,18 @@ function migrateLegacyData() {
     </div>
     <div class="section">
       <div class="form-card">
+        <p class="settings-card-title">⚡ 快捷指令</p>
+        <div class="toggle-row" style="padding:2px 0 0;border-bottom:none">
+          <span class="toggle-label">联动快捷指令</span>
+          <label class="toggle"><input type="checkbox" id="s-shortcut-enabled" onchange="toggleShortcutEnabled(this)"><span class="toggle-track"></span></label>
+        </div>
+        <p class="info-tip" style="margin-top:8px;padding:0">
+          开启后，开始/结束任务会通过快捷指令写入苹果日历，并联动 iPhone 秒表（需 iPhone + Pro 授权）；关闭后记录仅保存在本地。Pro 用户默认开启，其他用户默认关闭。
+        </p>
+      </div>
+    </div>
+    <div class="section">
+      <div class="form-card">
         <p class="settings-card-title">🏷 我的时间分类</p>
         <div class="cal-tags" id="cal-tags" style="padding:0 0 4px"></div>
         <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
@@ -1608,6 +1621,8 @@ function renderStorageStats() {
 function applySettings(s) {
   const sc = document.getElementById('s-sleep-cat')
   if (sc) sc.value = s.sleepCat || DEFAULTS.sleepCat
+  const se = document.getElementById('s-shortcut-enabled')
+  if (se) se.checked = shortcutOn()
   renderProAuth()
   refreshCatList('sleep-cat-list')
   renderCatChips('sleep-cat-chips', 's-sleep-cat')
@@ -2329,9 +2344,23 @@ function addToCalendar(title, start, end, notes) {
   ].filter(Boolean).join('\r\n')
   window.location.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(lines)
 }
+// 快捷指令总开关：用户显式设置过就用显式值；未设置过按 Pro 状态取默认（Pro 开 / 非 Pro 关），
+// 这样非 Pro 用户后续解锁 Pro 时默认自动开启，Pro 失效后默认自动关闭
+function shortcutOn() {
+  const s = loadSettings()
+  if (typeof s.shortcutEnabled === 'boolean') return s.shortcutEnabled
+  return proState() === 'ok'
+}
+function toggleShortcutEnabled(input) {
+  const s = loadSettings()
+  s.shortcutEnabled = !!input.checked
+  try { localStorage.setItem('app_settings', JSON.stringify(s)) } catch {}
+  toast(input.checked ? '已开启快捷指令联动' : '已关闭快捷指令联动，记录仅保存在本地')
+}
 // 统一写入手机日历：根据设置选择 Shortcuts / ICS / 不保存
 // shortcuts 模式仅限已解锁 Pro 的用户（2026-08-20 起设置页不再提供模式选择，未解锁静默跳过）
 function writeEventToCalendar(payload) {
+  if (!shortcutOn()) return
   const mode = loadSettings().calendarMode || 'shortcuts'
   if (mode === 'none') return
   if (mode === 'ics') {
@@ -2348,6 +2377,7 @@ function writeEventToCalendar(payload) {
 // 所有开始态都发（Now/Last/manual）——秒表时长与过去时间的任务对不上没关系，
 // 用户要的是灵动岛上「有任务进行中」的实时提醒
 function launchStartShortcut(title, startISO) {
+  if (!shortcutOn()) return
   if ((loadSettings().calendarMode || 'shortcuts') !== 'shortcuts') return
   if (!proGateOk() || !isIOS()) return
   launch(getShortcutName(), { action: 'start', title, start: startISO })
@@ -4409,9 +4439,12 @@ let _pickedTask = null    // 通过点选填入标题的任务名（chips 高亮
 
 function buildPickerData() {
   const byCat = {}
+  // 软删除名单：只从点选选项隐藏，done_tasks 记录不动，统计/习惯关键词匹配不受影响
+  const hidden = loadSettings().hiddenPickerTasks || []
   loadDoneTasks().forEach(t => {
     const title = (t.title || '').trim()
     if (!title) return
+    if (hidden.includes(_titleNorm(title))) return
     const cat = (t.category || '').trim() || '未分类'
     const ms = new Date(t.start).getTime() || 0
     ;(byCat[cat] = byCat[cat] || []).push({ title, ms })
@@ -4435,7 +4468,25 @@ function buildPickerData() {
 
 function _pkJs(s) { return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'") }
 function _pkTaskChip(name, cat) {
-  return `<button type="button" class="pk-task${name === _pickedTask ? ' sel' : ''}" onclick="pickTaskChip('${_pkJs(name)}','${_pkJs(cat)}')">${escHtml(name)}</button>`
+  return `<button type="button" class="pk-task${name === _pickedTask ? ' sel' : ''}" onclick="pickTaskChip('${_pkJs(name)}','${_pkJs(cat)}')">${escHtml(name)}<span class="pk-del" title="从选项中隐藏（历史记录保留）" onclick="event.stopPropagation();removePickerTask('${_pkJs(name)}')">×</span></button>`
+}
+
+// 任务选项软删除：藏入 app_settings.hiddenPickerTasks（规范化任务名），随设置一起导出备份；
+// done_tasks 原始记录不动，统计/习惯打卡的关键词匹配照常；再次手动记录同名任务会自动恢复（见 saveDoneTask）
+function hidePickerTask(name) {
+  const s = loadSettings()
+  const key = _titleNorm(name)
+  const list = s.hiddenPickerTasks || []
+  if (key && !list.includes(key)) list.push(key)
+  s.hiddenPickerTasks = list
+  try { localStorage.setItem('app_settings', JSON.stringify(s)) } catch {}
+}
+function removePickerTask(name) {
+  if (!confirm(`从记录选项中隐藏「${name}」？\n历史记录、统计和习惯打卡不受影响；再次手动记录同名任务会自动恢复显示。`)) return
+  hidePickerTask(name)
+  _pickerData = null
+  renderTaskPicker()
+  toast(`已隐藏「${name}」`)
 }
 
 function renderTaskPicker() {
@@ -6647,6 +6698,15 @@ function saveDoneTask(record) {
   // 每条记录必须有稳定 task_id + updated_at
   if (!record.task_id)  record.task_id  = newTaskId()
   if (!record.updated_at) record.updated_at = nextUpdatedAt()
+  // 被软删除隐藏的任务再次手动记录时，自动从隐藏名单移除（恢复显示在点选选项里）
+  const key = _titleNorm(record.title)
+  if (key) {
+    const s = loadSettings()
+    if (s.hiddenPickerTasks?.includes(key)) {
+      s.hiddenPickerTasks = s.hiddenPickerTasks.filter(k => k !== key)
+      try { localStorage.setItem('app_settings', JSON.stringify(s)) } catch {}
+    }
+  }
   try {
     const list = loadDoneTasks()
     // 去重：同 task_id 替换而非 unshift
