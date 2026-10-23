@@ -728,6 +728,54 @@
     .cal-legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #8e8e93; }
     .cal-legend-dot { width: 12px; height: 12px; border-radius: 3px; }
 
+    /* 月度时间结构图：每行一天，横向 24 小时，色块按分类着色 */
+    .mv-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .mv-title { font-size: 14px; font-weight: 600; color: #3a3a3c; }
+    .mv-hours { display: flex; align-items: flex-end; gap: 6px; margin-bottom: 4px; }
+    .mv-hours-track { position: relative; flex: 1; height: 12px; }
+    .mv-hour-tick { position: absolute; top: 0; font-size: 9px; color: #aeaeb2; font-variant-numeric: tabular-nums; }
+    .mv-dayrows { display: flex; flex-direction: column; gap: 3px; }
+    .mv-dayrow { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+    .mv-dayrow:active .mv-track { opacity: 0.75; }
+    .mv-daylabel { width: 22px; flex: none; font-size: 11px; color: #8e8e93; text-align: right; font-variant-numeric: tabular-nums; }
+    .mv-daylabel.mv-weekend { color: #c7c7cc; }
+    .mv-daylabel.mv-today { color: #9AB88F; font-weight: 700; }
+    .mv-track { position: relative; flex: 1; height: 14px; background: #f2f2f7; border-radius: 4px; overflow: hidden; }
+    /* 逐小时细线：盖在色块上的半透明白线，仿手帐纸网格透出来的效果 */
+    .mv-track-grid { position: absolute; inset: 0; pointer-events: none; background-image: repeating-linear-gradient(to right, transparent 0, transparent calc(100% / 24 - 1px), rgba(255,255,255,0.55) calc(100% / 24 - 1px), rgba(255,255,255,0.55) calc(100% / 24)); }
+    .mv-seg { position: absolute; top: 0; bottom: 0; border-radius: 2px; min-width: 1.5px; }
+    .mv-seg-active { opacity: 0.55; border-right: 2px dashed rgba(0,0,0,0.25); }
+    .mv-legend { display: flex; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; }
+    .mv-legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #6e6e73; }
+    .mv-legend-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+
+    /* 色块气泡明细（悬停/点按，深色浮层同 toast 风格） */
+    .mv-tip { position: fixed; z-index: 700; background: #1c1c1e; color: #fff; border-radius: 10px; padding: 10px 12px; font-size: 12px; line-height: 1.6; max-width: 260px; box-shadow: 0 4px 16px rgba(0,0,0,0.25); pointer-events: none; opacity: 0; transition: opacity 0.12s; }
+    .mv-tip.show { opacity: 1; }
+    .mv-tip-title { font-weight: 600; font-size: 13px; }
+    .mv-tip-dim { color: rgba(255,255,255,0.75); }
+    .mv-tip-part { color: rgba(255,255,255,0.9); }
+    .mv-tip-notes { color: rgba(255,255,255,0.65); margin-top: 2px; white-space: pre-wrap; }
+
+    /* 月度图打印按钮 + 打印预览弹窗 */
+    .mv-print-btn { border: none; background: #f2f2f7; border-radius: 8px; font-size: 12px; padding: 4px 10px; color: #3a3a3c; font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    .mv-print-btn:active { opacity: 0.7; }
+    #mv-print-overlay { align-items: stretch; }
+    .mv-print-panel { width: 100%; max-height: 100vh; overflow-y: auto; padding: calc(16px + env(safe-area-inset-top)) 12px 40px; box-sizing: border-box; }
+    .mv-print-actions { display: flex; gap: 10px; justify-content: center; align-items: center; margin-bottom: 10px; position: sticky; top: 0; z-index: 2; }
+    .mv-print-actions button { border: none; border-radius: 10px; padding: 9px 16px; font-size: 14px; font-family: inherit; cursor: pointer; background: #fff; color: #1c1c1e; box-shadow: 0 1px 4px rgba(0,0,0,0.18); }
+    .mv-print-actions .mv-print-primary { background: #9AB88F; color: #fff; font-weight: 600; }
+    .mv-print-hint { text-align: center; font-size: 12px; color: rgba(255,255,255,0.85); margin: 0 0 14px; }
+
+    /* 打印：只输出 A4 打印版（#mv-print-root），隐藏应用本体；必须强制打印背景色，否则色块全丢 */
+    #mv-print-root { display: none; }
+    @media print {
+      @page { size: A4 portrait; margin: 0; }
+      body > *:not(#mv-print-root) { display: none !important; }
+      #mv-print-root { display: block !important; }
+      #mv-print-root, #mv-print-root * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+
     .toast {
       position: fixed; bottom: 36px; left: 50%;
       transform: translateX(-50%) translateY(8px);
@@ -1265,7 +1313,8 @@ function migrateLegacyData() {
   <div class="container">
     <div class="review-tabs">
       <button class="review-tab active" id="review-tab-chat" onclick="switchReviewTab('chat')">AI 对话</button>
-      <button class="review-tab" id="review-tab-fogg" onclick="switchReviewTab('fogg')">福格三问</button>
+      <button class="review-tab" id="review-tab-fogg" onclick="switchReviewTab('fogg')">日·复盘</button>
+      <button class="review-tab" id="review-tab-month" onclick="switchReviewTab('month')">月·复盘</button>
     </div>
 
     <div id="review-pane-chat">
@@ -1314,6 +1363,11 @@ function migrateLegacyData() {
         </div>
         <div id="fogg-history-list" style="display:flex;flex-direction:column;gap:8px"></div>
       </div>
+    </div>
+
+    <!-- 月·复盘：月度时间结构图（每行一天 × 横向 24 小时色块，可打印） -->
+    <div id="review-pane-month" style="display:none">
+      <div class="section" id="mv-month"></div>
     </div>
   </div>
 </div>
@@ -1544,14 +1598,14 @@ const DEFAULT_PROMPT = `你是一名专业的时间管理顾问，擅长通过�
 const DEFAULT_USER_CALENDARS = ['💻工作','🧠充电','🏃‍♀️运动','✈️休闲','💞关系','💤睡眠','🏠琐事','⚠️黑洞']
 
 const DEFAULT_CAT_COLORS = {
-  '💻工作': '#90CAF9',
-  '🧠充电': '#FFCC80',
-  '🏃‍♀️运动': '#FFE082',
-  '✈️休闲': '#80DEEA',
-  '💞关系': '#A5D6A7',
-  '💤睡眠': '#B0BEC5',
-  '🏠琐事': '#CE93D8',
-  '⚠️黑洞': '#FF8A80',
+  '💻工作': '#378ADD',
+  '🧠充电': '#EF9F27',
+  '🏃‍♀️运动': '#EF9F27',
+  '✈️休闲': '#97C459',
+  '💞关系': '#7F77DD',
+  '💤睡眠': '#888780',
+  '🏠琐事': '#CECBF6',
+  '⚠️黑洞': '#E24B4A',
 }
 
 const DEFAULTS = {
@@ -2890,11 +2944,14 @@ function renderDashPieLeaders() {
     const right = tag.classList.contains('right')
     const startX = cx + Math.cos(angle) * radius
     const startY = cy + Math.sin(angle) * radius
-    const elbowX = cx + Math.cos(angle) * (radius + 12)
-    const elbowY = cy + Math.sin(angle) * (radius + 12)
     const labelY = tagRect.top + tagRect.height / 2 - wrapRect.top
     const labelX = right ? tagRect.left - wrapRect.left - 5 : tagRect.right - wrapRect.left + 5
-    const points = [[startX, startY], [elbowX, elbowY], [elbowX, labelY], [labelX, labelY]]
+    // 引线最多折一次：饼缘 → 斜线直接到标签高度 → 水平进标签，避免多条竖线挤在饼缘
+    // 斜线的水平分量随高差增大、上限 24px（高差为 0 时退化成一条直线）
+    const side = right ? 1 : -1
+    const dy = labelY - startY
+    const run = side * Math.min(Math.abs(dy) * 0.6, 24)
+    const points = [[startX, startY], [startX + run, labelY], [labelX, labelY]]
       .map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ')
     lines.push(`<polyline points="${points}" style="stroke:${tag.dataset.color}"/>`)
   })
@@ -3252,6 +3309,345 @@ function renderDashHeatmap(tasks, start, end) {
   html += '</div>'
 
   return html
+}
+
+// ══════════════════════════════════════════════════════════
+// 月度时间结构图（复盘页「月·复盘」）：每行一天 × 横向 24 小时，色块按分类着色
+// 跨午夜任务物理切分到两行（与时间流视图同口径）；自行翻月，不受任何周期筛选影响
+// ══════════════════════════════════════════════════════════
+let _mvMonth = null // 月度时间结构图正在查看的月份 'YYYY-MM'（null = 当月）
+
+function getMonthViz() {
+  if (!_mvMonth) _mvMonth = fmtDateOnly(new Date()).slice(0, 7)
+  return _mvMonth
+}
+
+function shiftMonthViz(delta) {
+  const [y, m] = getMonthViz().split('-').map(Number)
+  const next = fmtDateOnly(new Date(y, m - 1 + delta, 1)).slice(0, 7)
+  if (next > fmtDateOnly(new Date()).slice(0, 7)) { toast('不能查看未来月份'); return }
+  _mvMonth = next
+  document.getElementById('mv-month').innerHTML = renderMonthViz()
+}
+
+function mvJumpToDay(dateStr) {
+  setTimelineDate(dateStr)
+  go('record')
+}
+
+// 整点刻度定位：0 贴左、24 贴右、23 向左多收一点避免与 24 字形相碰，其余居中
+function mvHourTickPos(h) {
+  if (h === 0) return 'left:0'
+  if (h === 24) return 'left:100%;transform:translateX(-100%)'
+  if (h === 23) return `left:${h / 24 * 100}%;transform:translateX(-72%)`
+  return `left:${h / 24 * 100}%;transform:translateX(-50%)`
+}
+
+// 月度图显示分组：8 个分类归并成 6 组，色相反差最大化（仿手帐复盘图）；
+// 只影响月度图的显示与合并口径，原始记录的分类和其他视图不动；未列出的自定义分类原样显示
+// 分组色为用户指定组合（中明度、直接使用不再加深）：睡眠中性灰压低存在感，
+// 关系深紫/琐事浅紫同色系，工作标准蓝，休闲草绿，成长琥珀橙黄，黑洞警示红
+const MV_GROUP_DEF = [
+  { name: '成长', cats: ['🧠充电', '🏃‍♀️运动'], color: '#EF9F27' },
+  { name: '关系', cats: ['💞关系'],           color: '#7F77DD' },
+  { name: '琐事', cats: ['🏠琐事'],           color: '#CECBF6' },
+  { name: '工作', cats: ['💻工作'],           color: '#378ADD' },
+  { name: '休闲', cats: ['✈️休闲'],           color: '#97C459' },
+  { name: '黑洞', cats: ['⚠️黑洞'],           color: '#E24B4A' },
+  { name: '睡眠', cats: ['💤睡眠'],           color: '#888780' },
+]
+function mvGroupOf(cat) {
+  for (const g of MV_GROUP_DEF) if (g.cats.includes(cat)) return g
+  // 未分组自定义分类：pastel 分类色加深一档（与时间流时长条系数一致）
+  return { name: cat || '未分类', color: darkenHex(getCatColor(cat), 0.72) }
+}
+function mvSegColor(cat) { return mvGroupOf(cat).color }
+
+// 一天的渲染段：done 任务物理切分 + 今天补进行中段 + 同分类相邻段（缝隙 <5 分钟，含重叠）合并
+// 屏幕图和打印版共用；进行中段不参与合并（保留虚线收尾样式）
+function getMonthVizSegs(tasks, dayStartMs, dayEndMs, dateStr, todayStr, nowMs) {
+  const segs = getDaySegments(tasks, dayStartMs, dayEndMs)
+  if (dateStr === todayStr) {
+    for (const t of loadActiveTasks()) {
+      const st = new Date(t.startedAt).getTime()
+      if (isNaN(st) || st >= dayEndMs || nowMs <= Math.max(st, dayStartMs)) continue
+      segs.push({ start: Math.max(st, dayStartMs), end: nowMs, task: t, active: true })
+    }
+    segs.sort((a, b) => a.start - b.start)
+  }
+  const MERGE_GAP = 5 * 60000
+  const merged = []
+  for (const s of segs) {
+    const last = merged[merged.length - 1]
+    // 合并键用显示分组：同组相邻段（如 充电 接 运动）同色无缝连成一条
+    const part = { start: s.start, end: s.end, title: s.task.title || '', notes: s.task.notes || '', cat: s.task.category || '' }
+    if (last && !last.active && !s.active && mvGroupOf(last.task.category || '').name === mvGroupOf(s.task.category || '').name && s.start - last.end < MERGE_GAP) {
+      last.end = Math.max(last.end, s.end)
+      last.parts.push(part)
+    } else {
+      merged.push({ start: s.start, end: s.end, task: s.task, active: s.active, parts: [part] })
+    }
+  }
+  return merged
+}
+
+// ── 色块气泡明细：悬停/点按色块显示 任务/分类/时间/备注，不跳转页面 ──
+let _mvTips = []
+
+function mvBuildTipHtml(s, group, dayEndMs) {
+  const fmt = ms => ms >= dayEndMs ? '24:00' : fmtTime(ms)  // 裁剪到日界的段明示 24:00
+  if (s.parts.length === 1) {
+    const p = s.parts[0]
+    let h = `<div class="mv-tip-title">${escHtml(p.title || '未命名任务')}</div>`
+      + `<div class="mv-tip-dim">${escHtml(group.name)} · ${fmt(p.start)}–${s.active ? '至今' : fmt(p.end)} · ${fmtDuration(s.start, s.end)}</div>`
+    if (p.notes) h += `<div class="mv-tip-notes">${escHtml(p.notes)}</div>`
+    return h
+  }
+  // 合并块：列出包含的每一段；段内分类不同（如 充电/运动→成长）时逐段标注
+  let h = `<div class="mv-tip-title">${escHtml(group.name)} · ${fmt(s.start)}–${fmt(s.end)} · ${fmtDuration(s.start, s.end)}</div>`
+  const cats = new Set(s.parts.map(p => p.cat))
+  for (const p of s.parts) {
+    h += `<div class="mv-tip-part">${fmt(p.start)}–${fmt(p.end)} ${escHtml(p.title || '未命名任务')}${cats.size > 1 ? ' · ' + escHtml(p.cat || '未分类') : ''}</div>`
+    if (p.notes) h += `<div class="mv-tip-notes">${escHtml(p.notes)}</div>`
+  }
+  return h
+}
+
+function mvShowTip(el, i) {
+  const content = _mvTips[i]
+  if (!content) return
+  const tip = document.getElementById('mv-tip')
+  tip.innerHTML = content
+  tip.classList.add('show')
+  const r = el.getBoundingClientRect()
+  const tw = tip.offsetWidth, th = tip.offsetHeight
+  tip.style.left = Math.max(8, Math.min(r.left + r.width / 2 - tw / 2, window.innerWidth - tw - 8)) + 'px'
+  let top = r.top - th - 8
+  if (top < 8) top = r.bottom + 8  // 上方放不下就翻到下边
+  tip.style.top = top + 'px'
+}
+function mvHideTip() { document.getElementById('mv-tip')?.classList.remove('show') }
+document.addEventListener('click', mvHideTip)
+document.addEventListener('scroll', mvHideTip, true)
+
+function renderMonthViz() {
+  const monthKey = getMonthViz()
+  const [year, month] = monthKey.split('-').map(Number)
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const todayStr = fmtDateOnly(new Date())
+  const tasks = loadDoneTasks().filter(t => !isHolidayTask(t))
+
+  let html = '<div class="section-title-row"><span class="section-title">月度时间结构</span>'
+    + '<button class="mv-print-btn" onclick="openMonthVizPrint()">🖨 打印</button></div>'
+    + '<div class="mv-header">'
+    + '<button class="date-picker-nav" onclick="shiftMonthViz(-1)">‹</button>'
+    + `<span class="mv-title">${year}年${month}月</span>`
+    + '<button class="date-picker-nav" onclick="shiftMonthViz(1)">›</button>'
+    + '</div>'
+
+  // 月内是否有任何记录（跨月任务带进当月部分的也算；当月进行中任务也算）
+  const monthStartMs = new Date(year, month - 1, 1).getTime()
+  const monthEndMs = monthStartMs + daysInMonth * 86400000
+  const hasDone = tasks.some(t => {
+    const s = new Date(t.start).getTime(), e = new Date(t.end).getTime()
+    return !isNaN(s) && !isNaN(e) && e > monthStartMs && s < monthEndMs
+  })
+  const hasActive = monthKey === todayStr.slice(0, 7) && loadActiveTasks().length > 0
+  if (!hasDone && !hasActive) return html + '<p class="empty-tip">该月无记录</p>'
+
+  // 小时刻度表头（0~24 逐小时整点）
+  html += '<div class="mv-hours"><div class="mv-daylabel"></div><div class="mv-hours-track">'
+  const HOUR_TICKS = Array.from({ length: 25 }, (_, i) => i)
+  HOUR_TICKS.forEach(h => {
+    html += `<span class="mv-hour-tick" style="${mvHourTickPos(h)}">${h}</span>`
+  })
+  html += '</div></div><div class="mv-dayrows">'
+
+  const catSet = new Set()
+  const nowMs = Date.now()
+  _mvTips = []
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dayStartMs = new Date(year, month - 1, day).getTime()
+    const dayEndMs = dayStartMs + 86400000
+    const dateStr = fmtDateOnly(new Date(dayStartMs))
+    const merged = getMonthVizSegs(tasks, dayStartMs, dayEndMs, dateStr, todayStr, nowMs)
+    const isFuture = dateStr > todayStr
+    const weekday = new Date(dayStartMs).getDay()
+    const labelCls = 'mv-daylabel' + (dateStr === todayStr ? ' mv-today' : (weekday === 0 || weekday === 6) ? ' mv-weekend' : '')
+    html += `<div class="mv-dayrow"${isFuture ? '' : ` onclick="mvJumpToDay('${dateStr}')"`}>`
+      + `<div class="${labelCls}">${day}</div><div class="mv-track">`
+    for (const s of merged) {
+      const left = (s.start - dayStartMs) / 86400000 * 100
+      const width = (s.end - s.start) / 86400000 * 100
+      const cat = s.task.category || ''
+      const group = mvGroupOf(cat)
+      catSet.add(group.name)
+      const ti = _mvTips.length
+      _mvTips.push(mvBuildTipHtml(s, group, dayEndMs))
+      // 悬停/点按色块出气泡明细，点按不冒泡（行空白处仍可点击下钻当天）
+      html += `<div class="mv-seg${s.active ? ' mv-seg-active' : ''}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%;background:${mvSegColor(cat)}" onmouseenter="mvShowTip(this,${ti})" onmouseleave="mvHideTip()" onclick="event.stopPropagation();mvShowTip(this,${ti})"></div>`
+    }
+    html += '<div class="mv-track-grid"></div></div></div>'
+  }
+  html += '</div>'
+
+  // 图例：当月实际出现的显示分组（按预定义组序，自定义分类排在后面）
+  const groupByName = n => MV_GROUP_DEF.find(g => g.name === n) || mvGroupOf(n === '未分类' ? '' : n)
+  html += '<div class="mv-legend">'
+  const groupOrder = [...MV_GROUP_DEF.map(g => g.name), ...[...catSet].sort()]
+  for (const name of new Set(groupOrder)) {
+    if (!catSet.has(name)) continue
+    html += `<div class="mv-legend-item"><div class="mv-legend-dot" style="background:${groupByName(name).color}"></div><span>${escHtml(name)}</span></div>`
+  }
+  html += '</div>'
+
+  return html
+}
+
+// ══════════════════════════════════════════════════════════
+// 月度时间结构 · A4 打印版
+// 版式用 mm 单位按 A4 纵向（210×297）排版；样式放 JS 常量以便「导出 HTML」复用同一份
+// 打印时 @media print 规则（在页面 <style> 里）只保留 #mv-print-root 并强制打印背景色
+// ══════════════════════════════════════════════════════════
+const MV_SHEET_CSS = `
+.mvs { width: 210mm; height: 297mm; padding: 10mm 12mm; box-sizing: border-box; background: #fff; color: #1c1c1e; display: flex; flex-direction: column; }
+.mvs-title { font-size: 8.5mm; font-weight: 600; letter-spacing: 0.08em; font-family: 'Xingkai SC', 'STXingkai', 'Kaiti SC', 'STKaiti', 'KaiTi', cursive; }
+.mvs-legend { display: flex; flex-wrap: wrap; gap: 2mm 5mm; margin: 5mm 0 3mm; }
+.mvs-chip { display: inline-flex; align-items: center; gap: 1.5mm; font-size: 3.4mm; color: #3a3a3c; }
+.mvs-chip i { width: 3.2mm; height: 3.2mm; border-radius: 0.8mm; display: inline-block; }
+.mvs-hours { display: flex; align-items: flex-end; gap: 2mm; margin-bottom: 1.5mm; }
+.mvs-hours-track { position: relative; flex: 1; height: 4mm; }
+.mvs-hour-tick { position: absolute; top: 0; font-size: 2.8mm; color: #aeaeb2; }
+.mvs-rows { display: flex; flex-direction: column; gap: 1mm; }
+.mvs-row { display: flex; align-items: center; gap: 2mm; }
+.mvs-daylabel { width: 6mm; flex: none; font-size: 3mm; color: #8e8e93; text-align: right; }
+.mvs-daylabel.mvs-weekend { color: #c7c7cc; }
+.mvs-daylabel.mvs-today { color: #7A9A6E; font-weight: 700; }
+.mvs-track { position: relative; flex: 1; height: 5.2mm; background: #f3f3f5; border-radius: 1mm; overflow: hidden; }
+/* 逐小时细线：盖在色块上的半透明白线，仿手帐纸网格 */
+.mvs-track-grid { position: absolute; inset: 0; pointer-events: none; background-image: repeating-linear-gradient(to right, transparent 0, transparent calc(100% / 24 - 0.2mm), rgba(255,255,255,0.6) calc(100% / 24 - 0.2mm), rgba(255,255,255,0.6) calc(100% / 24)); }
+.mvs-seg { position: absolute; top: 0; bottom: 0; }
+.mvs-seg-active { opacity: 0.55; border-right: 0.6mm dashed rgba(0,0,0,0.25); }
+`
+// 注入页面，供打印预览弹窗使用（打印本体用的规则在 <style> 的 @media print 里）
+{
+  const st = document.createElement('style')
+  st.textContent = MV_SHEET_CSS
+  document.head.appendChild(st)
+}
+
+// A4 打印版式：标题 + 图例 + 31 行 × 24 小时网格 + 底部留白
+// 数据为 null 时（整月无记录）返回 null
+function renderMonthVizSheet(monthKey) {
+  const [year, month] = monthKey.split('-').map(Number)
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const todayStr = fmtDateOnly(new Date())
+  const nowMs = Date.now()
+  const tasks = loadDoneTasks().filter(t => !isHolidayTask(t))
+
+  const monthStartMs = new Date(year, month - 1, 1).getTime()
+  const monthEndMs = monthStartMs + daysInMonth * 86400000
+  const hasDone = tasks.some(t => {
+    const s = new Date(t.start).getTime(), e = new Date(t.end).getTime()
+    return !isNaN(s) && !isNaN(e) && e > monthStartMs && s < monthEndMs
+  })
+  const hasActive = monthKey === todayStr.slice(0, 7) && loadActiveTasks().length > 0
+  if (!hasDone && !hasActive) return null
+
+  const catSet = new Set()
+  let rows = ''
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dayStartMs = new Date(year, month - 1, day).getTime()
+    const dayEndMs = dayStartMs + 86400000
+    const dateStr = fmtDateOnly(new Date(dayStartMs))
+    const merged = getMonthVizSegs(tasks, dayStartMs, dayEndMs, dateStr, todayStr, nowMs)
+    const weekday = new Date(dayStartMs).getDay()
+    const labelCls = 'mvs-daylabel' + (dateStr === todayStr ? ' mvs-today' : (weekday === 0 || weekday === 6) ? ' mvs-weekend' : '')
+    rows += `<div class="mvs-row"><div class="${labelCls}">${day}</div><div class="mvs-track">`
+    for (const s of merged) {
+      const left = (s.start - dayStartMs) / 86400000 * 100
+      const width = (s.end - s.start) / 86400000 * 100
+      const cat = s.task.category || ''
+      catSet.add(mvGroupOf(cat).name)
+      rows += `<div class="mvs-seg${s.active ? ' mvs-seg-active' : ''}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%;background:${mvSegColor(cat)}"></div>`
+    }
+    rows += '<div class="mvs-track-grid"></div></div></div>'
+  }
+
+  // 图例：与屏幕图同口径的显示分组
+  const groupByName = n => MV_GROUP_DEF.find(g => g.name === n) || mvGroupOf(n === '未分类' ? '' : n)
+  let legend = ''
+  const groupOrder = [...MV_GROUP_DEF.map(g => g.name), ...[...catSet].sort()]
+  for (const name of new Set(groupOrder)) {
+    if (!catSet.has(name)) continue
+    legend += `<span class="mvs-chip"><i style="background:${groupByName(name).color}"></i>${escHtml(name)}</span>`
+  }
+
+  let hours = '<div class="mvs-hours"><div class="mvs-daylabel"></div><div class="mvs-hours-track">'
+  const HOUR_TICKS = Array.from({ length: 25 }, (_, i) => i)
+  HOUR_TICKS.forEach(h => {
+    hours += `<span class="mvs-hour-tick" style="${mvHourTickPos(h)}">${h}</span>`
+  })
+  hours += '</div></div>'
+
+  return `<div class="mvs">`
+    + `<div><div class="mvs-title">${year}年${month}月 · 月度时间复盘</div></div>`
+    + `<div class="mvs-legend">${legend}</div>`
+    + hours
+    + `<div class="mvs-rows">${rows}</div>`
+    + `</div>`
+}
+
+function openMonthVizPrint() {
+  const sheet = renderMonthVizSheet(getMonthViz())
+  if (!sheet) { toast('该月无记录，无法打印'); return }
+  document.getElementById('mv-print-root').innerHTML = sheet
+  // 预览按屏幕宽度等比缩放（A4 在 CSS 里 210mm ≈ 794px，297mm ≈ 1123px）
+  const s = Math.min(1, (document.documentElement.clientWidth - 24) / 794)
+  document.getElementById('mv-print-preview').innerHTML =
+    `<div style="width:${Math.round(794 * s)}px;height:${Math.round(1123 * s)}px;margin:0 auto;overflow:hidden">`
+    + `<div style="width:210mm;transform:scale(${s});transform-origin:top left;box-shadow:0 2px 16px rgba(0,0,0,0.25)">${sheet}</div>`
+    + `</div>`
+  document.getElementById('mv-print-overlay').classList.add('open')
+}
+function closeMonthVizPrint() {
+  document.getElementById('mv-print-overlay').classList.remove('open')
+}
+function printMonthViz() { window.print() }
+
+// 导出自包含 HTML：内嵌同一份版式 CSS，浏览器打开即可直接打印（iPhone 上网页 App 内 window.print 可能无反应时的兜底）
+function monthVizStandaloneHtml(monthKey) {
+  const sheet = renderMonthVizSheet(monthKey)
+  return `<!DOCTYPE html>
+<html lang="zh-CN"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>月度时间复盘 ${monthKey}</title>
+<style>
+html, body { margin: 0; padding: 0; background: #eee; font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', Arial, sans-serif; }
+* { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.mvs { margin: 12px auto; box-shadow: 0 2px 16px rgba(0,0,0,0.18); }
+@page { size: A4 portrait; margin: 0; }
+@media print { html, body { background: #fff; } .mvs { margin: 0; box-shadow: none; } }
+${MV_SHEET_CSS}
+</style></head>
+<body>${sheet}</body></html>`
+}
+
+async function exportMonthVizHtml() {
+  const monthKey = getMonthViz()
+  const html = monthVizStandaloneHtml(monthKey)
+  const fname = `月度时间复盘-${monthKey}.html`
+  const file = new File([html], fname, { type: 'text/html' })
+  // 优先系统分享菜单（iOS 可存文件/转发），不支持或用户取消以外的错误回落为下载
+  try {
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file] })
+      return
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') return
+  }
+  downloadTextFile(html, fname, 'text/html')
 }
 
 function renderDashTrend(tasks, start, end) {
@@ -5955,8 +6351,9 @@ const _sleep = ms => new Promise(r => setTimeout(r, ms))
 // 复盘页 Pro 门控：非 Pro 只保留福格三问——隐藏分段头与「AI 总结」按钮，并强制落在福格面板
 function applyReviewGating() {
   const pro = isProVerified()
-  const tabs = document.querySelector('.review-tabs')
-  if (tabs) tabs.style.display = pro ? '' : 'none'
+  // 非 Pro：只隐藏「AI 对话」标签，日·复盘/月·复盘对所有用户可见
+  const chatTab = document.getElementById('review-tab-chat')
+  if (chatTab) chatTab.style.display = pro ? '' : 'none'
   const aiBtn = document.getElementById('fogg-ai-btn')
   if (aiBtn) aiBtn.style.display = pro ? '' : 'none'
   if (!pro && currentReviewTab === 'chat') switchReviewTab('fogg')
@@ -5967,11 +6364,14 @@ function switchReviewTab(tab) {
   currentReviewTab = tab
   document.getElementById('review-pane-chat').style.display = tab === 'chat' ? '' : 'none'
   document.getElementById('review-pane-fogg').style.display = tab === 'fogg' ? '' : 'none'
+  document.getElementById('review-pane-month').style.display = tab === 'month' ? '' : 'none'
   document.getElementById('review-tab-chat').classList.toggle('active', tab === 'chat')
   document.getElementById('review-tab-fogg').classList.toggle('active', tab === 'fogg')
+  document.getElementById('review-tab-month').classList.toggle('active', tab === 'month')
   document.getElementById('new-chat-btn').style.display = tab === 'chat' ? '' : 'none'
   // 福格面板从隐藏转为可见时重算 textarea 高度（display:none 时 scrollHeight 为 0）
   if (tab === 'fogg') requestAnimationFrame(autosizeAllFogg)
+  if (tab === 'month') document.getElementById('mv-month').innerHTML = renderMonthViz()
 }
 
 // ── 授权 ──
@@ -6664,7 +7064,9 @@ function getCatColor(cat) {
 // <select> 的 <option> 不支持 HTML，用彩色圆点 emoji 近似展示分类颜色
 const CAT_COLOR_EMOJI = {
   '#FF8A80': '🔴', '#FFCC80': '🟠', '#FFE082': '🟡', '#A5D6A7': '🟢', '#80DEEA': '🔵',
-  '#90CAF9': '🔵', '#9FA8DA': '🟣', '#CE93D8': '🟣', '#F48FB1': '🩷', '#B0BEC5': '⚪'
+  '#90CAF9': '🔵', '#9FA8DA': '🟣', '#CE93D8': '🟣', '#F48FB1': '🩷', '#B0BEC5': '⚪',
+  '#378ADD': '🔵', '#EF9F27': '🟠', '#97C459': '🟢', '#7F77DD': '🟣', '#CECBF6': '🟣',
+  '#888780': '⚪', '#E24B4A': '🔴'
 }
 function getCatColorDot(cat) { return CAT_COLOR_EMOJI[(getCatColor(cat) || '').toUpperCase()] || '⚪' }
 
@@ -7658,6 +8060,21 @@ else renderRecord()
     </div>
   </div>
 </div>
+
+<!-- 月度时间结构：A4 打印预览弹窗（打印本体在 #mv-print-root，@media print 时只输出它） -->
+<div id="mv-print-overlay" class="modal-overlay">
+  <div class="mv-print-panel">
+    <div class="mv-print-actions">
+      <button class="mv-print-primary" onclick="printMonthViz()">🖨 直接打印</button>
+      <button onclick="exportMonthVizHtml()">📄 导出 HTML</button>
+      <button onclick="closeMonthVizPrint()">✕ 关闭</button>
+    </div>
+    <p class="mv-print-hint">A4 纵向 · iPhone 上若直接打印无反应，用「导出 HTML」后在 Safari 打开再打印</p>
+    <div id="mv-print-preview"></div>
+  </div>
+</div>
+<div id="mv-print-root"></div>
+<div id="mv-tip" class="mv-tip"></div>
 
 </body>
 </html>
