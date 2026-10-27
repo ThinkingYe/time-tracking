@@ -1318,8 +1318,7 @@ function migrateLegacyData() {
     </div>
 
     <div id="review-pane-chat">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
-        <span class="pro-badge">Pro</span>
+      <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:12px">
         <button class="new-chat-btn" id="new-chat-btn" onclick="newChat()">＋ 新对话</button>
       </div>
       <div class="form-card" id="chat-auth-card" style="display:none">
@@ -1495,12 +1494,16 @@ function migrateLegacyData() {
       <div class="form-card">
         <p class="settings-card-title">⚡ 快捷指令</p>
         <div class="toggle-row" style="padding:2px 0 0;border-bottom:none">
-          <span class="toggle-label">联动快捷指令</span>
+          <span class="toggle-label">自动写入iOS日历</span>
           <label class="toggle"><input type="checkbox" id="s-shortcut-enabled" onchange="toggleShortcutEnabled(this)"><span class="toggle-track"></span></label>
         </div>
         <p class="info-tip" style="margin-top:8px;padding:0">
-          开启后，开始/结束任务会通过快捷指令写入苹果日历，并联动 iPhone 秒表（需 iPhone + Pro 授权）；关闭后记录仅保存在本地。Pro 用户默认开启，其他用户默认关闭。
+          开启后，开始/结束/修改任务会通过快捷指令自动写入 iOS 日历；关闭后，记录仅保存在浏览器本地。
         </p>
+        <div style="margin-top:10px">
+          <button class="btn-chip" id="shortcut-dl-btn" onclick="openShortcutDownload()">📲 导入快捷指令</button>
+        </div>
+        <p class="info-tip" style="margin-top:6px;padding:0">导入后请不要修改快捷指令名称，否则网页调起时会找不到（正确名称：时间记录 Pro）。</p>
       </div>
     </div>
     <div class="section">
@@ -1509,9 +1512,7 @@ function migrateLegacyData() {
         <div class="cal-tags" id="cal-tags" style="padding:0 0 4px"></div>
         <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
           <button class="btn-chip" onclick="openCalAddModal()">＋ 添加分类</button>
-          <!-- 同步到苹果日历（Pro）：随进阶玩法区一起下线，测试免费版转化；恢复时取消注释（syncCatsToAppleCalendar 函数保留）
-          <button class="btn-chip" onclick="syncCatsToAppleCalendar()">同步到苹果日历 <span class="pro-badge">Pro</span></button>
-          -->
+          <button class="btn-chip" onclick="syncCatsToAppleCalendar()">同步到苹果日历</button>
           <button class="btn-chip" onclick="resetUserCalendars()">恢复默认</button>
         </div>
         <p class="info-tip" style="margin-top:8px;padding:0">
@@ -1546,6 +1547,7 @@ function migrateLegacyData() {
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn-chip" onclick="openExportSelectModal()">📤 导出JSON数据</button>
           <button class="btn-chip" onclick="document.getElementById('migration-file').click()">📥 导入JSON数据</button>
+          <button class="btn-chip" onclick="openCalExportModal()">📤 导出iOS日历</button>
           <button class="btn-chip" onclick="openObsidianExportModal()">📓 导出MD文件</button>
         </div>
         <input type="file" id="migration-file" accept=".json,application/json" style="display:none" onchange="onMigrationFileSelected(this)">
@@ -2433,12 +2435,12 @@ function launchStartShortcut(title, startISO) {
 // ══════════════════════════════════════════════════════════
 // 时间段选择收在弹窗里（与导出/导入数据同一交互范式），设置页只留一个弱化按钮
 function openCalExportModal() {
-  if (!isIOS()) { toast('该功能为 Pro 版专属，需在 iPhone 上配合快捷指令使用'); return }
+  if (!isIOS()) { toast('此功能需要 iPhone 快捷指令，当前设备不支持'); return }
   document.getElementById('cal-export-modal')?.classList.add('open')
 }
 function closeCalExportModal() { document.getElementById('cal-export-modal')?.classList.remove('open') }
 function exportAppleCalendarData() {
-  if (!isIOS()) { toast('该功能为 Pro 版专属，需在 iPhone 上配合快捷指令使用'); return }
+  if (!isIOS()) { toast('此功能需要 iPhone 快捷指令，当前设备不支持'); return }
   const startDate = document.getElementById('cal-import-start-date')?.value
   const startTime = document.getElementById('cal-import-start-time')?.value || '00:00:00'
   const endDate   = document.getElementById('cal-import-end-date')?.value
@@ -2459,6 +2461,29 @@ function exportAppleCalendarData() {
 
   closeCalExportModal()
   launch(getShortcutName(), { action: 'import', calendarStart, calendarEnd })
+}
+
+// 设置页「📲 导入快捷指令」：从 Worker 公开端点 /assets 拉 iCloud 分享链接并跳转
+// （链接存 KV asset:shortcut_url，换链接不用发版）；结果缓存一次，失败可重试
+let _shortcutUrlCache = ''
+async function openShortcutDownload() {
+  if (_shortcutUrlCache) { window.location.href = _shortcutUrlCache; return }
+  const btn = document.getElementById('shortcut-dl-btn')
+  if (btn) { btn.disabled = true; btn.textContent = '获取中…' }
+  try {
+    const r = await fetch('https://api.echosaiagent.com/assets')
+    const data = await r.json().catch(() => ({}))
+    if (r.ok && data.shortcutUrl) {
+      _shortcutUrlCache = data.shortcutUrl
+      window.location.href = data.shortcutUrl
+    } else {
+      toast('快捷指令链接暂未配置，请稍后再试')
+    }
+  } catch {
+    toast('网络异常，请检查网络后重试')
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📲 导入快捷指令' }
+  }
 }
 
 function parseAppleCalDate(str) {
@@ -4656,7 +4681,7 @@ function isIOS() {
 // 一键把所有时间分类（仅名称，不含颜色）通过快捷指令写入苹果日历
 // 快捷指令收到 { action: 'timetype', categories: [...] } 后逐个创建同名日历
 function syncCatsToAppleCalendar() {
-  if (!isIOS()) { toast('该功能为 Pro 版专属，需在 iPhone 上配合快捷指令使用'); return }
+  if (!isIOS()) { toast('此功能需要 iPhone 快捷指令，当前设备不支持'); return }
   const list = loadUserCalendars()
   if (!list.length) { toast('请先添加时间分类'); return }
   launch(getShortcutName(), { action: 'timetype', categories: list })
@@ -5030,13 +5055,15 @@ function quickSetDuration(mins) {
 
 // 点胶囊：选中端点并直接展开该端点的原生日期/时刻输入（系统滚轮选择，不弹键盘）；
 // 同时收起另一端点的滚轮，避免对着开始时间的滚轮误调结束时间。再点当前端点收起
+// 结束端点选中时：已有值（补录预填/编辑原有）原样保留，只有空值才默认成当前时刻
 function tapTimeCap(ep) {
   const native = document.getElementById(ep === 'start' ? 'f-native-start' : 'f-native-end')
   const other  = document.getElementById(ep === 'start' ? 'f-native-end' : 'f-native-start')
   if (_timeSel !== ep) {
     _timeSel = ep
     renderTimeQuick()
-    if (ep === 'end') quickSetTime('now')
+    const endEmpty = !document.getElementById('f-end-time')?.value
+    if (ep === 'end' && endEmpty) quickSetTime('now')
     else renderTimeRow()
     if (other) other.style.display = 'none'
     if (native) { materializeEndpoint(ep); native.style.display = 'flex' }
@@ -6240,7 +6267,7 @@ async function aiDraftFogg() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        order_id: s.orderId,
+        order_id: s.orderId || '',  // 可为空：Worker 对无白名单 order_id 的 /review 请求按 IP 限流放行
         systemPrompt: FOGG_DRAFT_PROMPT,
         messages: [{ role: 'user', content: `【我的时间记录：${date}，共 ${ctx.taskCount} 条任务、${ctx.flashCount} 条闪念】\n${ctx.contextText}\n\n请根据以上记录起草福格三问。` }],
       }),
@@ -7894,14 +7921,14 @@ else renderRecord()
   </div>
 </div>
 
-<!-- 导出苹果日历Data 弹窗（Pro）：入口按钮已随免费版测试下线，弹窗一并注释；恢复时取消注释（openCalExportModal / exportAppleCalendarData 函数保留）
+<!-- 导出苹果日历Data 弹窗：选时间段 → 快捷指令读取苹果日历事件存 JSON 到 iCloud → 回本站「导入JSON数据」选入 -->
 <div id="cal-export-modal" class="modal-overlay" onclick="if(event.target===this)closeCalExportModal()">
   <div class="modal-card" onclick="event.stopPropagation()">
     <div class="modal-header">
       <span class="modal-title">导出iOS日历</span>
       <button class="modal-close" onclick="closeCalExportModal()">×</button>
     </div>
-    <p style="font-size:14px;color:#6e6e73;margin-bottom:12px">Pro 版专属：调用配套快捷指令，读取指定时间段的苹果日历事件并保存到 iCloud。快捷指令请联系客服获取。</p>
+    <p style="font-size:14px;color:#6e6e73;margin-bottom:12px">调用配套快捷指令，读取指定时间段的苹果日历事件并保存到 iCloud，完成后回本站「导入JSON数据」选入该文件。需先在设置页「⚡ 快捷指令」导入配套快捷指令。</p>
     <div class="row-2">
       <div class="field"><label>开始日期</label><input type="date" id="cal-import-start-date"></div>
       <div class="field"><label>开始时刻</label><input type="time" id="cal-import-start-time"></div>
@@ -7916,7 +7943,6 @@ else renderRecord()
     </div>
   </div>
 </div>
--->
 
 <!-- 导出 Obsidian 日记：选区间 → 日期多选 → 逐日生成 YYYYMMDD.md（frontmatter 含习惯打卡结果，正文含时间统计+福格三问+时间流） -->
 <div id="obsidian-export-modal" class="modal-overlay" onclick="if(event.target===this)closeObsidianExportModal()">
