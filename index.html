@@ -745,7 +745,7 @@
     .mv-track-grid { position: absolute; inset: 0; pointer-events: none; background-image: repeating-linear-gradient(to right, transparent 0, transparent calc(100% / 24 - 1px), rgba(255,255,255,0.55) calc(100% / 24 - 1px), rgba(255,255,255,0.55) calc(100% / 24)); }
     .mv-seg { position: absolute; top: 0; bottom: 0; border-radius: 2px; min-width: 1.5px; }
     .mv-seg-active { opacity: 0.55; border-right: 2px dashed rgba(0,0,0,0.25); }
-    .mv-legend { display: flex; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; }
+    .mv-legend { display: flex; flex-wrap: wrap; gap: 8px 12px; margin-bottom: 8px; }
     .mv-legend-item { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #6e6e73; }
     .mv-legend-dot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
 
@@ -2364,12 +2364,6 @@ function isPWA() {
 async function launch(name, payload) {
   // 非 iPhone 无法调起快捷指令，直接跳转会落到浏览器错误页，改为提示并跳过
   if (!isIOS()) { toast('此功能需要 iPhone 快捷指令，当前设备不支持'); return }
-  // Pro 前置校验收拢在这里（2026-09-10 起）：所有调起快捷指令的入口统一受控，
-  // 未解锁/试用到期/服务端停用都走不到下面的跳转
-  const st = proState()
-  if (st === 'none') { toast('该功能为 Pro 版专属，请先在设置页开通'); return }
-  if (st === 'expired') { clearProAuth(); toast('试用已到期，日历同步已停止；获取新订单号后可重新解锁'); return }
-  if (!await recheckProIfStale()) return
   // source 字段告诉快捷指令调用来源：'pwa'（主屏幕 Web App）/ 'browser'（浏览器内打开）
   const body = { ...payload, source: isPWA() ? 'pwa' : 'browser' }
   const url = 'shortcuts://run-shortcut?name=' + encodeURIComponent(name)
@@ -2398,21 +2392,19 @@ function addToCalendar(title, start, end, notes) {
   ].filter(Boolean).join('\r\n')
   window.location.href = 'data:text/calendar;charset=utf-8,' + encodeURIComponent(lines)
 }
-// 快捷指令总开关：用户显式设置过就用显式值；未设置过按 Pro 状态取默认（Pro 开 / 非 Pro 关），
-// 这样非 Pro 用户后续解锁 Pro 时默认自动开启，Pro 失效后默认自动关闭
+// 快捷指令总开关：用户显式设置过就用显式值，未设置过默认关闭（手动入口如「导出iOS日历」不受此开关控制）
 function shortcutOn() {
   const s = loadSettings()
   if (typeof s.shortcutEnabled === 'boolean') return s.shortcutEnabled
-  return proState() === 'ok'
+  return false
 }
 function toggleShortcutEnabled(input) {
   const s = loadSettings()
   s.shortcutEnabled = !!input.checked
   try { localStorage.setItem('app_settings', JSON.stringify(s)) } catch {}
-  toast(input.checked ? '已开启快捷指令联动' : '已关闭快捷指令联动，记录仅保存在本地')
+  toast(input.checked ? '已开启自动写入iOS日历' : '已关闭，记录仅保存在浏览器本地')
 }
 // 统一写入手机日历：根据设置选择 Shortcuts / ICS / 不保存
-// shortcuts 模式仅限已解锁 Pro 的用户（2026-08-20 起设置页不再提供模式选择，未解锁静默跳过）
 function writeEventToCalendar(payload) {
   if (!shortcutOn()) return
   const mode = loadSettings().calendarMode || 'shortcuts'
@@ -2420,20 +2412,19 @@ function writeEventToCalendar(payload) {
   if (mode === 'ics') {
     addToCalendar(payload.title, payload.start, payload.end, payload.notes)
   } else {
-    if (!proGateOk()) return
     // 非 iPhone 无法调起快捷指令，直接跳转会落到浏览器错误页，改为提示并跳过
     if (!isIOS()) { toast('当前设备不支持快捷指令，任务已保存在本地'); return }
     launch(getShortcutName(), payload)
   }
 }
 // 开始任务时联动 iPhone 秒表：走快捷指令 start 分支（2026-09-10 起由弃用的 fogg 分支改名而来）。
-// 与写日历同一套门槛：shortcuts 模式 + Pro 已解锁 + iOS。
+// 与写日历同一套门槛：shortcuts 模式 + 总开关开启 + iOS。
 // 所有开始态都发（Now/Last/manual）——秒表时长与过去时间的任务对不上没关系，
 // 用户要的是灵动岛上「有任务进行中」的实时提醒
 function launchStartShortcut(title, startISO) {
   if (!shortcutOn()) return
   if ((loadSettings().calendarMode || 'shortcuts') !== 'shortcuts') return
-  if (!proGateOk() || !isIOS()) return
+  if (!isIOS()) return
   launch(getShortcutName(), { action: 'start', title, start: startISO })
 }
 
@@ -3343,25 +3334,7 @@ function mvHourTickPos(h) {
   return `left:${h / 24 * 100}%;transform:translateX(-50%)`
 }
 
-// 月度图显示分组：8 个分类归并成 6 组，色相反差最大化（仿手帐复盘图）；
-// 只影响月度图的显示与合并口径，原始记录的分类和其他视图不动；未列出的自定义分类原样显示
-// 分组色为用户指定组合（中明度、直接使用不再加深）：睡眠中性灰压低存在感，
-// 关系深紫/琐事浅紫同色系，工作标准蓝，休闲草绿，成长琥珀橙黄，黑洞警示红
-const MV_GROUP_DEF = [
-  { name: '成长', cats: ['🧠充电', '🏃‍♀️运动'], color: '#EF9F27' },
-  { name: '关系', cats: ['💞关系'],           color: '#7F77DD' },
-  { name: '琐事', cats: ['🏠琐事'],           color: '#CECBF6' },
-  { name: '工作', cats: ['💻工作'],           color: '#378ADD' },
-  { name: '休闲', cats: ['✈️休闲'],           color: '#97C459' },
-  { name: '黑洞', cats: ['⚠️黑洞'],           color: '#E24B4A' },
-  { name: '睡眠', cats: ['💤睡眠'],           color: '#888780' },
-]
-function mvGroupOf(cat) {
-  for (const g of MV_GROUP_DEF) if (g.cats.includes(cat)) return g
-  // 未分组自定义分类：pastel 分类色加深一档（与时间流时长条系数一致）
-  return { name: cat || '未分类', color: darkenHex(getCatColor(cat), 0.72) }
-}
-function mvSegColor(cat) { return mvGroupOf(cat).color }
+// 月度图不做任何分组归并：用户设置里是什么分类就展示什么分类，颜色取分类自己的颜色（getCatColor）
 
 // 一天的渲染段：done 任务物理切分 + 今天补进行中段 + 同分类相邻段（缝隙 <5 分钟，含重叠）合并
 // 屏幕图和打印版共用；进行中段不参与合并（保留虚线收尾样式）
@@ -3379,9 +3352,9 @@ function getMonthVizSegs(tasks, dayStartMs, dayEndMs, dateStr, todayStr, nowMs) 
   const merged = []
   for (const s of segs) {
     const last = merged[merged.length - 1]
-    // 合并键用显示分组：同组相邻段（如 充电 接 运动）同色无缝连成一条
+    // 合并键就是分类本身：同分类相邻段（缝隙 <5 分钟，含重叠）无缝连成一条
     const part = { start: s.start, end: s.end, title: s.task.title || '', notes: s.task.notes || '', cat: s.task.category || '' }
-    if (last && !last.active && !s.active && mvGroupOf(last.task.category || '').name === mvGroupOf(s.task.category || '').name && s.start - last.end < MERGE_GAP) {
+    if (last && !last.active && !s.active && (last.task.category || '') === (s.task.category || '') && s.start - last.end < MERGE_GAP) {
       last.end = Math.max(last.end, s.end)
       last.parts.push(part)
     } else {
@@ -3394,20 +3367,12 @@ function getMonthVizSegs(tasks, dayStartMs, dayEndMs, dateStr, todayStr, nowMs) 
 // ── 色块气泡明细：悬停/点按色块显示 任务/分类/时间/备注，不跳转页面 ──
 let _mvTips = []
 
-function mvBuildTipHtml(s, group, dayEndMs) {
+function mvBuildTipHtml(s, catName, dayEndMs) {
   const fmt = ms => ms >= dayEndMs ? '24:00' : fmtTime(ms)  // 裁剪到日界的段明示 24:00
-  if (s.parts.length === 1) {
-    const p = s.parts[0]
-    let h = `<div class="mv-tip-title">${escHtml(p.title || '未命名任务')}</div>`
-      + `<div class="mv-tip-dim">${escHtml(group.name)} · ${fmt(p.start)}–${s.active ? '至今' : fmt(p.end)} · ${fmtDuration(s.start, s.end)}</div>`
-    if (p.notes) h += `<div class="mv-tip-notes">${escHtml(p.notes)}</div>`
-    return h
-  }
-  // 合并块：列出包含的每一段；段内分类不同（如 充电/运动→成长）时逐段标注
-  let h = `<div class="mv-tip-title">${escHtml(group.name)} · ${fmt(s.start)}–${fmt(s.end)} · ${fmtDuration(s.start, s.end)}</div>`
-  const cats = new Set(s.parts.map(p => p.cat))
+  // 单段/合并段统一格式：首行 分类·起止·总时长；第二行起按时间顺序逐段「• 任务 · 时长」，备注独立换行
+  let h = `<div class="mv-tip-title">${escHtml(catName)} · ${fmt(s.start)}–${s.active ? '至今' : fmt(s.end)} · ${fmtDuration(s.start, s.end)}</div>`
   for (const p of s.parts) {
-    h += `<div class="mv-tip-part">${fmt(p.start)}–${fmt(p.end)} ${escHtml(p.title || '未命名任务')}${cats.size > 1 ? ' · ' + escHtml(p.cat || '未分类') : ''}</div>`
+    h += `<div class="mv-tip-part">• ${escHtml(p.title || '未命名任务')} · ${fmtDuration(p.start, p.end)}</div>`
     if (p.notes) h += `<div class="mv-tip-notes">${escHtml(p.notes)}</div>`
   }
   return h
@@ -3456,16 +3421,17 @@ function renderMonthViz() {
   if (!hasDone && !hasActive) return html + '<p class="empty-tip">该月无记录</p>'
 
   // 小时刻度表头（0~24 逐小时整点）
-  html += '<div class="mv-hours"><div class="mv-daylabel"></div><div class="mv-hours-track">'
+  let hoursHtml = '<div class="mv-hours"><div class="mv-daylabel"></div><div class="mv-hours-track">'
   const HOUR_TICKS = Array.from({ length: 25 }, (_, i) => i)
   HOUR_TICKS.forEach(h => {
-    html += `<span class="mv-hour-tick" style="${mvHourTickPos(h)}">${h}</span>`
+    hoursHtml += `<span class="mv-hour-tick" style="${mvHourTickPos(h)}">${h}</span>`
   })
-  html += '</div></div><div class="mv-dayrows">'
+  hoursHtml += '</div></div>'
 
   const catSet = new Set()
   const nowMs = Date.now()
   _mvTips = []
+  let rowsHtml = '<div class="mv-dayrows">'
   for (let day = 1; day <= daysInMonth; day++) {
     const dayStartMs = new Date(year, month - 1, day).getTime()
     const dayEndMs = dayStartMs + 86400000
@@ -3474,32 +3440,28 @@ function renderMonthViz() {
     const isFuture = dateStr > todayStr
     const weekday = new Date(dayStartMs).getDay()
     const labelCls = 'mv-daylabel' + (dateStr === todayStr ? ' mv-today' : (weekday === 0 || weekday === 6) ? ' mv-weekend' : '')
-    html += `<div class="mv-dayrow"${isFuture ? '' : ` onclick="mvJumpToDay('${dateStr}')"`}>`
+    rowsHtml += `<div class="mv-dayrow"${isFuture ? '' : ` onclick="mvJumpToDay('${dateStr}')"`}>`
       + `<div class="${labelCls}">${day}</div><div class="mv-track">`
     for (const s of merged) {
       const left = (s.start - dayStartMs) / 86400000 * 100
       const width = (s.end - s.start) / 86400000 * 100
       const cat = s.task.category || ''
-      const group = mvGroupOf(cat)
-      catSet.add(group.name)
+      catSet.add(cat)
       const ti = _mvTips.length
-      _mvTips.push(mvBuildTipHtml(s, group, dayEndMs))
+      _mvTips.push(mvBuildTipHtml(s, cat || '未分类', dayEndMs))
       // 悬停/点按色块出气泡明细，点按不冒泡（行空白处仍可点击下钻当天）
-      html += `<div class="mv-seg${s.active ? ' mv-seg-active' : ''}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%;background:${mvSegColor(cat)}" onmouseenter="mvShowTip(this,${ti})" onmouseleave="mvHideTip()" onclick="event.stopPropagation();mvShowTip(this,${ti})"></div>`
+      rowsHtml += `<div class="mv-seg${s.active ? ' mv-seg-active' : ''}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%;background:${getCatColor(cat)}" onmouseenter="mvShowTip(this,${ti})" onmouseleave="mvHideTip()" onclick="event.stopPropagation();mvShowTip(this,${ti})"></div>`
     }
-    html += '<div class="mv-track-grid"></div></div></div>'
+    rowsHtml += '<div class="mv-track-grid"></div></div></div>'
   }
-  html += '</div>'
+  rowsHtml += '</div>'
 
-  // 图例：当月实际出现的显示分组（按预定义组序，自定义分类排在后面）
-  const groupByName = n => MV_GROUP_DEF.find(g => g.name === n) || mvGroupOf(n === '未分类' ? '' : n)
+  // 图例在图表上方：当月实际出现的分类（用户自己的分类与配色，原样展示）
   html += '<div class="mv-legend">'
-  const groupOrder = [...MV_GROUP_DEF.map(g => g.name), ...[...catSet].sort()]
-  for (const name of new Set(groupOrder)) {
-    if (!catSet.has(name)) continue
-    html += `<div class="mv-legend-item"><div class="mv-legend-dot" style="background:${groupByName(name).color}"></div><span>${escHtml(name)}</span></div>`
+  for (const c of [...catSet].sort()) {
+    html += `<div class="mv-legend-item"><div class="mv-legend-dot" style="background:${getCatColor(c)}"></div><span>${escHtml(c || '未分类')}</span></div>`
   }
-  html += '</div>'
+  html += '</div>' + hoursHtml + rowsHtml
 
   return html
 }
@@ -3568,19 +3530,16 @@ function renderMonthVizSheet(monthKey) {
       const left = (s.start - dayStartMs) / 86400000 * 100
       const width = (s.end - s.start) / 86400000 * 100
       const cat = s.task.category || ''
-      catSet.add(mvGroupOf(cat).name)
-      rows += `<div class="mvs-seg${s.active ? ' mvs-seg-active' : ''}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%;background:${mvSegColor(cat)}"></div>`
+      catSet.add(cat)
+      rows += `<div class="mvs-seg${s.active ? ' mvs-seg-active' : ''}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%;background:${getCatColor(cat)}"></div>`
     }
     rows += '<div class="mvs-track-grid"></div></div></div>'
   }
 
-  // 图例：与屏幕图同口径的显示分组
-  const groupByName = n => MV_GROUP_DEF.find(g => g.name === n) || mvGroupOf(n === '未分类' ? '' : n)
+  // 图例：与屏幕图同口径，分类原样展示
   let legend = ''
-  const groupOrder = [...MV_GROUP_DEF.map(g => g.name), ...[...catSet].sort()]
-  for (const name of new Set(groupOrder)) {
-    if (!catSet.has(name)) continue
-    legend += `<span class="mvs-chip"><i style="background:${groupByName(name).color}"></i>${escHtml(name)}</span>`
+  for (const c of [...catSet].sort()) {
+    legend += `<span class="mvs-chip"><i style="background:${getCatColor(c)}"></i>${escHtml(c || '未分类')}</span>`
   }
 
   let hours = '<div class="mvs-hours"><div class="mvs-daylabel"></div><div class="mvs-hours-track">'
@@ -5631,8 +5590,8 @@ function submitRecordForm(mode) {
 
     if (changed) {
       const calMode = loadSettings().calendarMode || 'shortcuts'
-      // shortcuts 模式仅限 Pro 用户（与 writeEventToCalendar 一致，未解锁静默跳过；试用到期提示一次）
-      if (calMode === 'shortcuts' && proGateOk()) {
+      // shortcuts 模式跟随「自动写入iOS日历」总开关（与 writeEventToCalendar 一致）；非 iOS 静默跳过
+      if (calMode === 'shortcuts' && shortcutOn() && isIOS()) {
         launch(getShortcutName(), {
           action: 'edit',
           oldTitle: orig.title, oldCategory: orig.category,
@@ -6233,8 +6192,7 @@ function formatFoggMemoContent(date) {
 }
 
 function saveFoggToMemo() {
-  if (!isIOS()) { toast('该功能为 Pro 版专属，需在 iPhone 上配合快捷指令使用'); return }
-  if (!isProVerified()) { toast('该功能为 Pro 版专属，请先在设置页开通'); return }
+  if (!isIOS()) { toast('此功能需要 iPhone 快捷指令，当前设备不支持'); return }
   const date = getFoggDateKey()
   saveFoggQuestions()
   const { title, content } = formatFoggMemoContent(date)
@@ -6267,7 +6225,6 @@ let _foggDrafting = false
 async function aiDraftFogg() {
   if (_foggDrafting) { toast('生成中，请稍候…'); return }
   const s = loadSettings()
-  if (!isProVerified()) { toast('AI 总结需要 Pro 授权，请先在设置页或 AI 对话页填写订单号'); return }
   const date = getFoggDateKey()
   if (!date || date > fmtDate(new Date())) { toast('这一天还没有记录'); return }
   const ctx = buildChatContext({ start: date, end: date })
@@ -6301,8 +6258,6 @@ async function aiDraftFogg() {
       toast('已生成初稿，修改后记得点保存')
     } else if (r.status === 429) {
       toast('今日对话次数已用完，明天再来 🌙')
-    } else if (r.status === 401) {
-      toast('订单号无效或未开通，请在 AI 对话页更正')
     } else {
       toast('总结失败，请稍后重试' + (data.error ? `（${data.error}）` : ''))
     }
@@ -6348,19 +6303,15 @@ let _chatSending = false
 
 const _sleep = ms => new Promise(r => setTimeout(r, ms))
 
-// 复盘页 Pro 门控：非 Pro 只保留福格三问——隐藏分段头与「AI 总结」按钮，并强制落在福格面板
+// 复盘页布局：AI 对话 / 日·复盘 / 月·复盘对所有用户可见（2026-10-27 起 Pro 门控下线）
 function applyReviewGating() {
-  const pro = isProVerified()
-  // 非 Pro：只隐藏「AI 对话」标签，日·复盘/月·复盘对所有用户可见
   const chatTab = document.getElementById('review-tab-chat')
-  if (chatTab) chatTab.style.display = pro ? '' : 'none'
+  if (chatTab) chatTab.style.display = ''
   const aiBtn = document.getElementById('fogg-ai-btn')
-  if (aiBtn) aiBtn.style.display = pro ? '' : 'none'
-  if (!pro && currentReviewTab === 'chat') switchReviewTab('fogg')
+  if (aiBtn) aiBtn.style.display = ''
 }
 
 function switchReviewTab(tab) {
-  if (tab === 'chat' && !isProVerified()) tab = 'fogg'
   currentReviewTab = tab
   document.getElementById('review-pane-chat').style.display = tab === 'chat' ? '' : 'none'
   document.getElementById('review-pane-fogg').style.display = tab === 'fogg' ? '' : 'none'
@@ -6375,12 +6326,12 @@ function switchReviewTab(tab) {
 }
 
 // ── 授权 ──
+// AI 对话已全员开放（2026-10-27 起）：不再要求订单号，授权卡片常驻隐藏，输入栏常驻显示
 function renderChatAuth() {
-  const has = isProVerified()
   const card = document.getElementById('chat-auth-card')
   const bar  = document.getElementById('chat-input-bar')
-  if (card) card.style.display = has ? 'none' : ''
-  if (bar)  bar.style.display  = has ? '' : 'none'
+  if (card) card.style.display = 'none'
+  if (bar)  bar.style.display  = ''
 }
 async function saveChatOrderId() {
   const inputEl = document.getElementById('chat-order-id')
@@ -6564,7 +6515,6 @@ function onChatKeydown(e) {
 async function sendChat() {
   if (_chatSending) { toast('生成中，请稍候…'); return }
   const s = loadSettings()
-  if (!s.orderId) { renderChatAuth(); toast('请先填写订单号解锁 AI 对话'); return }
   const input = document.getElementById('chat-input')
   const text = input.value.trim()
   if (!text) return
@@ -6626,7 +6576,7 @@ async function sendChat() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        order_id: s.orderId,
+        order_id: s.orderId || '',  // 可为空：Worker 对无白名单 order_id 的 /review 请求按 IP 限流放行
         systemPrompt: s.systemPrompt || DEFAULT_PROMPT,
         messages: session.messages.map(m => ({ role: m.role, content: m.content })),
       }),
@@ -6637,12 +6587,6 @@ async function sendChat() {
       session.messages.push({ role: 'assistant', content: data.result })
     } else if (r.status === 429) {
       errText = '今日对话次数已用完，明天再来 🌙'
-    } else if (r.status === 401) {
-      errText = '订单号无效或未开通，请在上方更正订单号后重试。'
-      // 把授权卡片亮出来并预填当前值，方便就地更正
-      const card = document.getElementById('chat-auth-card')
-      const oi = document.getElementById('chat-order-id')
-      if (card && oi) { oi.value = s.orderId; card.style.display = '' }
     } else {
       errText = '分析失败，请稍后重试。' + (data.error ? `（${data.error}）` : '')
     }
