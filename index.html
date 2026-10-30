@@ -4965,8 +4965,11 @@ function pickTaskChip(title, cat) {
 // 紧凑时间行：开始→结束胶囊 + 快捷微调（±30/±15/±5 分钟）+ 快捷设置（最后/开始/现在）
 // 胶囊是原生 date/time input 的可视层（提交逻辑仍读 input 值）；
 // Now 态（start 模式的开始 / end 模式的结束）在微调或展开前先实体化为当前时刻
+// 选中态用 _timeQuickSel 状态承载：updateSubmitBtn 每次都会经 renderTimeQuick 重建按钮，
+// 直接给按钮挂 class 会被重建抹掉，必须由状态驱动（教训：选中态写在重建之前等于没写）
 // ══════════════════════════════════════════════════════════
 let _timeSel = 'start'   // 当前选中端点：start | end
+let _timeQuickSel = null  // 快捷行选中态：'d±分钟'（如 'd5'）| 'last' | 'start' | 'now'
 const TIME_QUICK_DELTAS = { neg: [-60, -30, -15, -10, -5], pos: [60, 30, 15, 10, 5] }  // 上排减、下排加，同列同值（±60 显示为 ±1h）
 const TIME_DOW = ['周日', '周一', '周二', '周三', '周四', '周五', '周六']
 
@@ -5024,11 +5027,12 @@ function renderTimeQuick() {
   // 6 列网格两行：上排 -1h/-30/-15/-10/-5 + 基准按钮（最后|开始），下排 +1h/+30/+15/+10/+5 + 现在
   const isStart = _timeSel === 'start'
   label.textContent = isStart ? '微调开始时间（分钟）' : '微调结束时间（分钟）'
-  const mkBtn = m => `<button type="button" class="t-q" onclick="adjustTimeEndpoint(${m}, this)">${m === 60 ? '+1h' : m === -60 ? '-1h' : (m > 0 ? '+' : '') + m}</button>`
+  const selCls = k => _timeQuickSel === k ? ' sel' : ''
+  const mkBtn = m => `<button type="button" class="t-q${selCls('d' + m)}" onclick="adjustTimeEndpoint(${m})">${m === 60 ? '+1h' : m === -60 ? '-1h' : (m > 0 ? '+' : '') + m}</button>`
   const qsBase = isStart
-    ? `<button type="button" class="t-qs" data-kind="last" onclick="quickSetTime('last')">最后</button>`
-    : `<button type="button" class="t-qs" data-kind="start" onclick="quickSetDuration(0)">开始</button>`
-  const qsNow = `<button type="button" class="t-qs" data-kind="now" onclick="quickSetTime('now')">现在</button>`
+    ? `<button type="button" class="t-qs${selCls('last')}" data-kind="last" onclick="quickSetTime('last')">最后</button>`
+    : `<button type="button" class="t-qs${selCls('start')}" data-kind="start" onclick="quickSetDuration(0)">开始</button>`
+  const qsNow = `<button type="button" class="t-qs${selCls('now')}" data-kind="now" onclick="quickSetTime('now')">现在</button>`
   row.innerHTML =
     TIME_QUICK_DELTAS.neg.map(mkBtn).join('') + qsBase +
     TIME_QUICK_DELTAS.pos.map(mkBtn).join('') + qsNow
@@ -5045,12 +5049,10 @@ function quickSetDuration(mins) {
   const d = new Date(base.getTime() + mins * 60000)
   document.getElementById('f-end-date').value = fmtDateOnly(d)
   document.getElementById('f-end-time').value = fmtTime(d)
+  _timeQuickSel = 'start'  // 选中态由状态承载（按钮随后会被 renderTimeQuick 重建）
   _onFormEndTimeChange()
   updateSubmitBtn()
   renderTimeRow()
-  // 与「现在」同一套选中态：互斥高亮，点「现在」自动熄灭
-  document.querySelectorAll('#f-tqrow .t-qs').forEach(b => b.classList.toggle('sel', b.dataset.kind === 'start'))
-  document.querySelectorAll('#f-tqrow .t-q').forEach(b => b.classList.remove('sel'))
 }
 
 // 点胶囊：选中端点并直接展开该端点的原生日期/时刻输入（系统滚轮选择，不弹键盘）；
@@ -5081,7 +5083,7 @@ function materializeEndpoint(ep) {
   if (ep === 'end' && _endIsNow()) setFormEndNow()
 }
 
-function adjustTimeEndpoint(mins, btn) {
+function adjustTimeEndpoint(mins) {
   materializeEndpoint(_timeSel)
   const dEl = document.getElementById(_timeSel === 'start' ? 'f-start-date' : 'f-end-date')
   const tEl = document.getElementById(_timeSel === 'start' ? 'f-start-time' : 'f-end-time')
@@ -5103,26 +5105,21 @@ function adjustTimeEndpoint(mins, btn) {
   tEl.value = fmtTime(d)
   if (_timeSel === 'start') markStartTouched()
   else _onFormEndTimeChange()
+  _timeQuickSel = 'd' + mins  // 选中态由状态承载：updateSubmitBtn 会重建按钮行，直接挂 class 会被抹掉
   updateSubmitBtn()
   renderTimeRow()
-  // 微调按钮选中态：高亮留在刚点的按钮上，直到点其他微调或快捷设置按钮
-  if (btn) {
-    document.querySelectorAll('#f-tqrow .t-q').forEach(b => b.classList.toggle('sel', b === btn))
-    document.querySelectorAll('#f-tqrow .t-qs').forEach(b => b.classList.remove('sel'))
-  }
 }
 
 function quickSetTime(kind) {
+  if (kind === 'last' && _timeSel !== 'start') return
+  _timeQuickSel = kind  // 先记状态，setFormXxx 内部的 updateSubmitBtn 重建按钮行时带出选中态
   if (kind === 'last') {
-    if (_timeSel !== 'start') return
     if (_recordMode === 'edit') setEditStartLast()
     else setFormStartLast()
   } else if (kind === 'now') {
     if (_timeSel === 'start') { _recordMode === 'edit' ? setEditStartNow() : setFormStartNow() }
     else { _recordMode === 'edit' ? setEditEndNow() : setFormEndNow() }
   }
-  document.querySelectorAll('#f-tqrow .t-qs').forEach(b => b.classList.toggle('sel', b.dataset.kind === kind))
-  document.querySelectorAll('#f-tqrow .t-q').forEach(b => b.classList.remove('sel'))
   renderTimeRow()
 }
 
@@ -5231,6 +5228,7 @@ function openRecordModal(mode, data) {
   _pickedTask = (document.getElementById('f-title')?.value || '') || null
   renderTaskPicker()
   _timeSel = mode === 'end' ? 'end' : 'start'
+  _timeQuickSel = null
   document.getElementById('f-native-start').style.display = 'none'
   document.getElementById('f-native-end').style.display = 'none'
   renderTimeQuick()
