@@ -1223,6 +1223,18 @@ function migrateLegacyData() {
       }
     } catch {}
   }
+
+  // 内置习惯「复盘」补种：老用户的 habits 已存 localStorage，DEFAULTS 新增项不会自动出现。
+  // 已有同名日历型习惯则原地转换为内置复盘（保留图标/隐藏状态），否则追加。
+  try {
+    const hs = [...(loadSettings().habits || DEFAULTS.habits)]
+    if (!hs.some(h => h.type === 'fogg')) {
+      const idx = hs.findIndex(h => h.type === 'calendar' && h.name === '复盘')
+      if (idx !== -1) hs[idx] = { name: '复盘', type: 'fogg', icon: hs[idx].icon || '📝', hidden: hs[idx].hidden }
+      else hs.push({ name: '复盘', type: 'fogg', icon: '📝' })
+      saveHabits(hs)
+    }
+  } catch {}
 }
 </script>
 
@@ -1618,7 +1630,8 @@ const DEFAULTS = {
     { name: '运动', type: 'calendar', keywords: ['运动'], icon: '💪' },
     { name: '充电', type: 'calendar', keywords: ['充电'], icon: '🔋' },
     { name: '早睡', type: 'bedtime', by: 23 * 60, icon: '🌙' },
-    { name: '早起', type: 'wake', by: 6 * 60, icon: '⏰' }
+    { name: '早起', type: 'wake', by: 6 * 60, icon: '⏰' },
+    { name: '复盘', type: 'fogg', icon: '📝' }
   ]
 }
 
@@ -1699,7 +1712,7 @@ function renderHabitSettings() {
   const habits = loadSettings().habits || DEFAULTS.habits
   // 全部习惯统一为 chips：点习惯名弹窗编辑，内置（早睡/早起）无删除、隐藏时半透明
   let html = `<div class="habit-chip-grid">` + habits.map((h, i) => {
-    const isBuiltin = h.type === 'bedtime' || h.type === 'wake'
+    const isBuiltin = h.type === 'bedtime' || h.type === 'wake' || h.type === 'fogg'
     const tag = isBuiltin ? '内置' : (h.matchBy === 'title' ? '任务' : '分类')
     const dim = h.hidden ? ' style="opacity:.45"' : ''
     return `<span class="habit-chip"${dim}>` +
@@ -1711,7 +1724,7 @@ function renderHabitSettings() {
   html += `<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:10px">
   <button class="btn-chip" onclick="openHabitModal(null)">＋ 添加习惯</button>
 </div>
-  <p class="info-tip" style="margin-top:6px;padding:0">当记录的时间数据中，「时间分类」或「任务名称」（2选1）包含习惯名称，当日即打卡。</p>`
+  <p class="info-tip" style="margin-top:6px;padding:0">自定义习惯：记录的「时间分类」或「任务名称」（2选1）包含习惯名，当日即打卡。内置「复盘」：当日写了日·复盘、或任务名称包含「复盘」，满足其一即打卡。</p>`
   el.innerHTML = html
 }
 
@@ -1733,19 +1746,26 @@ function openHabitModal(idx) {
   const habits = loadSettings().habits || DEFAULTS.habits
   _editingHabitIdx = (idx == null) ? null : idx
   const h = _editingHabitIdx != null ? habits[_editingHabitIdx] : null
-  const isBuiltin = !!(h && (h.type === 'bedtime' || h.type === 'wake'))
+  const isBuiltin = !!(h && (h.type === 'bedtime' || h.type === 'wake' || h.type === 'fogg'))
   document.getElementById('habit-modal-title').textContent = h ? (isBuiltin ? h.name : '编辑习惯') : '添加习惯'
   // 自定义习惯：名称 + 匹配方式；内置习惯：阈值 + 显示开关
   document.getElementById('habit-name-field').style.display = isBuiltin ? 'none' : ''
   document.getElementById('habit-scope-field').style.display = isBuiltin ? 'none' : ''
   document.getElementById('habit-builtin-fields').style.display = isBuiltin ? '' : 'none'
   if (isBuiltin) {
-    document.getElementById('habit-builtin-label').textContent = h.type === 'bedtime' ? '入睡时间早于' : '起床时间早于'
-    document.getElementById('habit-builtin-threshold').innerHTML = habitThresholdOptions(h)
+    const isFogg = h.type === 'fogg'
+    // 复盘无阈值可配：只保留显示开关和判定说明
+    document.getElementById('habit-builtin-threshold-row').style.display = isFogg ? 'none' : ''
+    if (!isFogg) {
+      document.getElementById('habit-builtin-label').textContent = h.type === 'bedtime' ? '入睡时间早于' : '起床时间早于'
+      document.getElementById('habit-builtin-threshold').innerHTML = habitThresholdOptions(h)
+    }
     document.getElementById('habit-builtin-visible').checked = !h.hidden
-    document.getElementById('habit-builtin-tip').textContent = h.type === 'bedtime'
-      ? '按当晚睡眠开始时刻判定，早于所选时间即打卡。'
-      : '按当天起床时刻（睡眠结束）判定，早于所选时间即打卡。'
+    document.getElementById('habit-builtin-tip').textContent = isFogg
+      ? '当日存在日·复盘记录，或任务名称包含「复盘」，满足其一即打卡。'
+      : h.type === 'bedtime'
+        ? '按当晚睡眠开始时刻判定，早于所选时间即打卡。'
+        : '按当天起床时刻（睡眠结束）判定，早于所选时间即打卡。'
   } else {
     document.getElementById('habit-name').value = h ? h.name : ''
     setHabitScope(h && h.matchBy === 'title' ? 'title' : 'category')
@@ -1767,10 +1787,11 @@ function saveHabit() {
   // 内置习惯：保存阈值 + 显示开关（名称与判定逻辑固定）
   if (_editingHabitIdx != null) {
     const old = habits[_editingHabitIdx]
-    if (old && (old.type === 'bedtime' || old.type === 'wake')) {
+    if (old && (old.type === 'bedtime' || old.type === 'wake' || old.type === 'fogg')) {
       habits[_editingHabitIdx] = {
         ...old,
-        by: parseInt(document.getElementById('habit-builtin-threshold').value, 10),
+        // 复盘没有阈值字段，不写 by
+        ...(old.type === 'fogg' ? {} : { by: parseInt(document.getElementById('habit-builtin-threshold').value, 10) }),
         hidden: !document.getElementById('habit-builtin-visible').checked,
       }
       saveHabits(habits)
@@ -1806,7 +1827,9 @@ function buildHabitsJSON() {
   const habits = (loadSettings().habits || DEFAULTS.habits).filter(h => !h.hidden)
   const out = habits.map(h => h.type === 'calendar'
     ? { name: h.name, type: 'calendar', matchBy: h.matchBy === 'title' ? 'title' : 'category', keywords: [h.name], minMinutes: 0, icon: h.icon }
-    : { name: h.name, type: h.type, by: h.by ?? (h.type === 'bedtime' ? 23 * 60 : 6 * 60), icon: h.icon })
+    : h.type === 'fogg'
+      ? { name: h.name, type: 'fogg', icon: h.icon }
+      : { name: h.name, type: h.type, by: h.by ?? (h.type === 'bedtime' ? 23 * 60 : 6 * 60), icon: h.icon })
   return JSON.stringify({ habits: out }, null, 2)
 }
 async function exportHabitsJSON() {
@@ -1821,7 +1844,7 @@ async function exportHabitsJSON() {
 }
 
 // ── 导出 Obsidian 日记 ──
-// 选区间 → 日期胶囊多选（默认全勾）→ 逐日生成 YYYYMMDD.md，多文件一次性系统分享（回落逐个下载）。
+// 选区间 → 日期胶囊多选（默认全勾）→ 逐日生成 YYYY-MM-DD.md，多文件一次性系统分享（回落逐个下载）。
 // 每篇 frontmatter 写习惯打卡结果（键=习惯名，供 habit-tracker.js 读取），正文含时间统计、福格三问、时间流。
 // 判定逻辑复用统计页的 habitDoneDaySets，两端结果一致。
 let _obsDays = []   // [{date:'YYYY-MM-DD', has:是否 有记录, on:是否勾选}]
@@ -2011,11 +2034,11 @@ function buildObsidianDailyNote(dateStr) {
   return yaml.concat(body).join('\n')
 }
 // 与导出小组件配置同一交互：优先系统分享菜单（可选「存储到文件」直接存进 vault），不支持时回落为普通下载
-// 多选日期：多个 .md 文件一次性进分享菜单（文件名 YYYYMMDD.md 唯一且可排序；月份归属由导入后的目录决定）
+// 多选日期：多个 .md 文件一次性进分享菜单（文件名 YYYY-MM-DD.md 唯一且可排序；月份归属由导入后的目录决定）
 async function exportObsidianDailyNote() {
   const dates = _obsDays.filter(d => d.on).map(d => d.date).sort()
   if (!dates.length) { toast('请先勾选要导出的日期'); return }
-  const files = dates.map(ds => new File([buildObsidianDailyNote(ds)], ds.replace(/-/g, '') + '.md', { type: 'text/markdown' }))
+  const files = dates.map(ds => new File([buildObsidianDailyNote(ds)], ds + '.md', { type: 'text/markdown' }))
   // 优先系统分享菜单（iOS 可「存储到文件」直接进 vault）；
   // 用户主动取消（AbortError）保留弹窗可重试，其他错误（桌面浏览器不支持文件分享等）回落普通下载
   try {
@@ -3057,6 +3080,11 @@ function habitDoneDaySets(tasks) {
         if (!kws.some(k => field.includes(k))) continue
         hasSource = true
         keys.add(fmtDateOnly(s))
+      } else if (h.type === 'fogg') {
+        // 命中方式一：任务名称包含「复盘」
+        if (!(t.title || '').includes(h.name)) continue
+        hasSource = true
+        keys.add(fmtDateOnly(s))
       } else if (h.type === 'bedtime' || h.type === 'wake') {
         if (!isSleepTask(t, settings.sleepCat)) continue
         const info = nightSleepInfo(t)
@@ -3069,6 +3097,16 @@ function habitDoneDaySets(tasks) {
         } else {
           const by = h.by ?? 6 * 60
           if (info.endMin >= WAKE_FLOOR_MIN && info.endMin <= by) keys.add(info.wakeDay)
+        }
+      }
+    }
+
+    if (h.type === 'fogg') {
+      // 命中方式二：当日有三问内容非空的日·复盘记录
+      for (const [d, ans] of Object.entries(loadAllFoggAnswers())) {
+        if (ans && FOGG_QUESTIONS.some(q => (ans[q.key] || '').trim())) {
+          hasSource = true
+          keys.add(d)
         }
       }
     }
@@ -6280,7 +6318,7 @@ async function aiDraftFogg() {
       })
       autosizeAllFogg()
       saveFoggQuestions()
-      toast('已生成初稿，修改后记得点保存')
+      toast('已生成初稿，可直接修改')
     } else if (r.status === 429) {
       toast('今日对话次数已用完，明天再来 🌙')
     } else {
@@ -6472,7 +6510,7 @@ function renderChatMessages() {
   if (!el) return
   const session = getCurrentChat()
   if (!session || !session.messages.length) {
-    el.innerHTML = `<div class="chat-msg assistant">我是你的时间复盘助手，会读取你的时间记录和闪念来回答。试试这样问：<span class="chat-example" onclick="fillChatExample(this)">分析我最近 4 周反复出现的行为模式</span><span class="chat-example" onclick="fillChatExample(this)">这周我的工作效率怎么样？</span><span class="chat-example" onclick="fillChatExample(this)">最近半年睡眠和运动习惯有变化吗？</span></div>`
+    el.innerHTML = `<div class="chat-msg assistant">我是你的时间复盘助手，会读取你的时间记录和闪念来回答。试试这样问：<span class="chat-example" onclick="fillChatExample(this)">分析我最近 4 周反复出现的行为模式</span><span class="chat-example" onclick="fillChatExample(this)">分析我最近4周好习惯的打卡情况</span><span class="chat-example" onclick="fillChatExample(this)">我最近4周的工作投入是否太碎片？</span></div>`
     return
   }
   el.innerHTML = session.messages.map(m =>
@@ -7820,7 +7858,7 @@ else renderRecord()
     </div>
     <!-- 内置习惯（早睡/早起）字段 -->
     <div id="habit-builtin-fields" style="display:none">
-      <div class="field"><label id="habit-builtin-label">打卡条件</label><select id="habit-builtin-threshold"></select></div>
+      <div class="field" id="habit-builtin-threshold-row"><label id="habit-builtin-label">打卡条件</label><select id="habit-builtin-threshold"></select></div>
       <div style="display:flex;align-items:center;justify-content:space-between;margin-top:12px">
         <span style="font-size:14px;color:#1c1c1e">在统计页显示该习惯</span>
         <label class="toggle" style="margin:0"><input type="checkbox" id="habit-builtin-visible" checked><span class="toggle-track"></span></label>
@@ -7942,14 +7980,14 @@ else renderRecord()
   </div>
 </div>
 
-<!-- 导出 Obsidian 日记：选区间 → 日期多选 → 逐日生成 YYYYMMDD.md（frontmatter 含习惯打卡结果，正文含时间统计+福格三问+时间流） -->
+<!-- 导出 Obsidian 日记：选区间 → 日期多选 → 逐日生成 YYYY-MM-DD.md（frontmatter 含习惯打卡结果，正文含时间统计+福格三问+时间流） -->
 <div id="obsidian-export-modal" class="modal-overlay" onclick="if(event.target===this)closeObsidianExportModal()">
   <div class="modal-card" onclick="event.stopPropagation()">
     <div class="modal-header">
       <span class="modal-title">导出 Obsidian 日记</span>
       <button class="modal-close" onclick="closeObsidianExportModal()">×</button>
     </div>
-    <p style="font-size:14px;color:#6e6e73;margin-bottom:12px">生成所选日期的日记 Markdown（习惯打卡、时间统计、福格三问、时间流），文件名 YYYYMMDD.md，存到 Obsidian 仓库的 00PeriodicNotes/年/年月/ 目录。注意：同一天的日记重复导出会整篇覆盖。</p>
+    <p style="font-size:14px;color:#6e6e73;margin-bottom:12px">生成所选日期的日记 Markdown（习惯打卡、时间统计、福格三问、时间流），文件名 YYYY-MM-DD.md，存到 Obsidian 仓库的 00PeriodicNotes/年/年月/ 目录。注意：同一天的日记重复导出会整篇覆盖。</p>
     <div class="field">
       <label>日期区间</label>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">
